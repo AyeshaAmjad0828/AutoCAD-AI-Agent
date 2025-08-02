@@ -270,7 +270,6 @@ Specify dimensions, power, color temperature, mounting type, and lens options.
             # Run connection in separate thread
             def connect_thread():
                 try:
-                    pythoncom.CoInitialize()  # <- Initialize COM in this thread
                     print("i am here p1")
                     self.agent = AutoDrawAIAgent()
                     print("i am here p3")
@@ -282,10 +281,6 @@ Specify dimensions, power, color temperature, mounting type, and lens options.
                     
                 except Exception as e:
                     self.root.after(0, lambda e=e: self.connection_failed(str(e)))
-                
-                finally:
-                    pythoncom.CoUninitialize()  # <- Clean up COM
-
 
             print("i am here P0")
             threading.Thread(target=connect_thread, daemon=True).start()
@@ -310,7 +305,14 @@ Specify dimensions, power, color temperature, mounting type, and lens options.
     def disconnect_autocad(self):
         """Disconnect from AutoCAD"""
         if self.agent:
-            self.agent.close_connection()
+            # Run cleanup in a separate thread to avoid blocking GUI
+            def cleanup_thread():
+                try:
+                    self.agent.close_connection()
+                except Exception as e:
+                    print(f"Error during cleanup: {e}")
+            
+            threading.Thread(target=cleanup_thread, daemon=True).start()
             self.agent = None
             self.is_connected = False
         
@@ -356,6 +358,7 @@ Specify dimensions, power, color temperature, mounting type, and lens options.
         # Run in separate thread
         def execute_thread():
             try:
+                # The agent will handle COM initialization internally for this thread
                 result = self.agent.create_complete_drawing(request)
                 
                 # Update GUI in main thread
@@ -436,6 +439,7 @@ Specify dimensions, power, color temperature, mounting type, and lens options.
         # Run in separate thread
         def batch_thread():
             try:
+                # The agent will handle COM initialization internally for this thread
                 results = self.agent.batch_process_requests(self.batch_requests)
                 
                 # Update GUI in main thread
@@ -495,7 +499,14 @@ def main():
     # Handle window close
     def on_closing():
         if app.agent:
-            app.agent.close_connection()
+            # Run cleanup in a separate thread to avoid blocking GUI
+            def cleanup_thread():
+                try:
+                    app.agent.close_connection()
+                except Exception as e:
+                    print(f"Error during cleanup: {e}")
+            
+            threading.Thread(target=cleanup_thread, daemon=True).start()
         root.destroy()
     
     root.protocol("WM_DELETE_WINDOW", on_closing)

@@ -7,6 +7,8 @@ import sys
 from typing import Dict, List, Tuple, Optional
 import logging
 from datetime import datetime
+import threading
+import pythoncom
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -31,16 +33,11 @@ class AutoDrawAIAgent:
         
         openai.api_key = self.openai_api_key
         
-        # Initialize AutoCAD COM connection
-        try:
-            print("I am here P1")
-            self.autocad = win32com.client.Dispatch("AutoCAD.Application")
-            self.doc = self.autocad.ActiveDocument
-            self.modelspace = self.doc.ModelSpace
-            logger.info("Successfully connected to AutoCAD")
-        except Exception as e:
-            logger.error(f"Failed to connect to AutoCAD: {e}")
-            raise
+        # Thread-local storage for COM objects
+        self._thread_local = threading.local()
+        
+        # Initialize AutoCAD COM connection in current thread
+        self._initialize_autocad_connection()
         
         # Command mapping for existing AutoLISP functions
         self.command_map = {
@@ -92,6 +89,55 @@ class AutoDrawAIAgent:
         ]
         
         logger.info("AutoDraw AI Agent initialized successfully")
+    
+    def _initialize_autocad_connection(self):
+        """Initialize AutoCAD COM connection for the current thread."""
+        try:
+            # Initialize COM for this thread
+            pythoncom.CoInitialize()
+            
+            print("I am here P1")
+            self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
+            self._thread_local.doc = self._thread_local.autocad.ActiveDocument
+            self._thread_local.modelspace = self._thread_local.doc.ModelSpace
+            logger.info("Successfully connected to AutoCAD")
+        except Exception as e:
+            logger.error(f"Failed to connect to AutoCAD: {e}")
+            pythoncom.CoUninitialize()
+            raise
+    
+    def _get_autocad_objects(self):
+        """Get AutoCAD objects for the current thread, reconnecting if necessary."""
+        try:
+            # Check if we have valid COM objects for this thread
+            if not hasattr(self._thread_local, 'autocad') or self._thread_local.autocad is None:
+                self._initialize_autocad_connection()
+            
+            # Test the connection
+            try:
+                doc = self._thread_local.autocad.ActiveDocument
+                return self._thread_local.autocad, doc, self._thread_local.modelspace
+            except Exception:
+                # Connection is broken, reinitialize
+                logger.info("AutoCAD connection broken, reconnecting...")
+                self._cleanup_autocad_connection()
+                self._initialize_autocad_connection()
+                return self._thread_local.autocad, self._thread_local.doc, self._thread_local.modelspace
+                
+        except Exception as e:
+            logger.error(f"Failed to get AutoCAD objects: {e}")
+            raise
+    
+    def _cleanup_autocad_connection(self):
+        """Clean up AutoCAD connection for the current thread."""
+        try:
+            if hasattr(self._thread_local, 'autocad'):
+                self._thread_local.autocad = None
+                self._thread_local.doc = None
+                self._thread_local.modelspace = None
+            pythoncom.CoUninitialize()
+        except Exception as e:
+            logger.error(f"Error cleaning up AutoCAD connection: {e}")
     
     def process_natural_language_request(self, user_input: str) -> Dict:
         """
@@ -213,12 +259,8 @@ class AutoDrawAIAgent:
                 logger.error("All command parameters are missing or zero — aborting to avoid AutoCAD crash.")
                 return False
 
-            # Check AutoCAD COM connection before sending
-            try:
-                doc = self.autocad.ActiveDocument
-            except Exception as e:
-                logger.error(f"AutoCAD COM session is broken: {e}")
-                return False
+            # Get AutoCAD objects for current thread
+            autocad, doc, modelspace = self._get_autocad_objects()
 
             # Send command to AutoCAD
             doc.SendCommand(command_string)
@@ -275,11 +317,15 @@ class AutoDrawAIAgent:
         
         while time.time() - start_time < timeout:
             try:
+                # Get AutoCAD objects for current thread
+                autocad, doc, modelspace = self._get_autocad_objects()
+                
                 # Check if command is still running
-                if not self.autocad.ActiveDocument.CommandInProgress:
+                if not doc.CommandInProgress:
                     return
                 time.sleep(0.1)
-            except:
+            except Exception as e:
+                logger.error(f"Error waiting for command completion: {e}")
                 time.sleep(0.1)
         
         logger.warning("Command execution timeout")
@@ -343,9 +389,12 @@ class AutoDrawAIAgent:
     def _apply_additional_modifications(self, additional_params: Dict):
         """Apply additional modifications to the drawing."""
         try:
+            # Get AutoCAD objects for current thread
+            autocad, doc, modelspace = self._get_autocad_objects()
+            
             # Apply emergency backup if specified
             if additional_params.get('emergency_backup') == 'true':
-                self.autocad.ActiveDocument.SendCommand("_ADDEM ")
+                doc.SendCommand("_ADDEM ")
             
             # Apply dimming if specified
             if additional_params.get('dimmable') == 'true':
@@ -410,8 +459,7 @@ class AutoDrawAIAgent:
     def close_connection(self):
         """Close AutoCAD connection."""
         try:
-            if hasattr(self, 'autocad'):
-                self.autocad = None
+            self._cleanup_autocad_connection()
             logger.info("AutoCAD connection closed")
         except Exception as e:
             logger.error(f"Error closing AutoCAD connection: {e}")
