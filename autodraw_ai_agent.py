@@ -99,15 +99,42 @@ class AutoDrawAIAgent:
             print("I am here P1")
             self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
             
+            # Wait a moment for AutoCAD to fully initialize
+            import time
+            time.sleep(0.5)
+            
+            # Check if AutoCAD is properly connected
+            try:
+                # Try to access a simple property first
+                app_name = self._thread_local.autocad.Name
+                logger.info(f"Connected to AutoCAD: {app_name}")
+            except Exception as e:
+                logger.error(f"AutoCAD application not accessible: {e}")
+                raise
+            
             # Check if there's an active document
-            if self._thread_local.autocad.Documents.Count == 0:
-                # Create a new document if none exists
-                self._thread_local.doc = self._thread_local.autocad.Documents.Add()
-            else:
-                self._thread_local.doc = self._thread_local.autocad.ActiveDocument
+            try:
+                if self._thread_local.autocad.Documents.Count == 0:
+                    # Create a new document if none exists
+                    self._thread_local.doc = self._thread_local.autocad.Documents.Add()
+                else:
+                    self._thread_local.doc = self._thread_local.autocad.ActiveDocument
+            except Exception as e:
+                logger.error(f"Error accessing documents: {e}")
+                # Try to create a new document anyway
+                try:
+                    self._thread_local.doc = self._thread_local.autocad.Documents.Add()
+                except Exception as e2:
+                    logger.error(f"Failed to create new document: {e2}")
+                    raise
             
             # Get ModelSpace
-            self._thread_local.modelspace = self._thread_local.doc.ModelSpace
+            try:
+                self._thread_local.modelspace = self._thread_local.doc.ModelSpace
+            except Exception as e:
+                logger.error(f"Error accessing ModelSpace: {e}")
+                raise
+                
             logger.info("Successfully connected to AutoCAD")
         except Exception as e:
             logger.error(f"Failed to connect to AutoCAD: {e}")
