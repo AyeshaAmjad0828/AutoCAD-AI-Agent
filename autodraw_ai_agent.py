@@ -98,7 +98,15 @@ class AutoDrawAIAgent:
             
             print("I am here P1")
             self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
-            self._thread_local.doc = self._thread_local.autocad.ActiveDocument
+            
+            # Check if there's an active document
+            if self._thread_local.autocad.Documents.Count == 0:
+                # Create a new document if none exists
+                self._thread_local.doc = self._thread_local.autocad.Documents.Add()
+            else:
+                self._thread_local.doc = self._thread_local.autocad.ActiveDocument
+            
+            # Get ModelSpace
             self._thread_local.modelspace = self._thread_local.doc.ModelSpace
             logger.info("Successfully connected to AutoCAD")
         except Exception as e:
