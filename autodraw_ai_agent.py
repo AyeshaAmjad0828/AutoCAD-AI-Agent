@@ -10,6 +10,7 @@ from datetime import datetime
 import threading
 import pythoncom
 import traceback
+import config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -40,54 +41,20 @@ class AutoDrawAIAgent:
         if initialize_autocad:
             self._initialize_autocad_connection()
         
-        # Command mapping for direct AutoCAD drawing commands (non-interactive)
-        self.command_map = {
-            "linear_light": "_LINE",  # Use LINE command instead of popup-based LSAUTO
-            "linear_light_reflector": "_LINE", 
-            "rush_light": "_LINE",
-            "rush_recessed": "_LINE",
-            "pg_light": "_LINE",
-            "magneto_track": "_LINE",
-            "repeat_last": "_COPY",
-            "details": "_TEXT",
-            "add_empck": "_INSERT",
-            "output_modifier": "_TEXT",
-            "driver_calculator": "_TEXT",
-            "driver_update": "_TEXT",
-            "runid_update": "_TEXT",
-            "susp_kit_count": "_TEXT",
-            "ww_toggle": "_TEXT",
-            "import_assets": "_INSERT",
-            "redefine_blocks": "_INSERT",
-            "purge_all": "_PURGE"
-        }
+        # Use the proper AutoDraw palette commands from config
+        self.command_map = config.COMMAND_MAP
         
-        # Lighting system specifications
-        self.lighting_systems = {
-            "ls": {"name": "Linear Light", "command": "linear_light"},
-            "lsr": {"name": "Linear Light with Reflector", "command": "linear_light_reflector"},
-            "rush": {"name": "Rush Light", "command": "rush_light"},
-            "rush_rec": {"name": "Rush Recessed", "command": "rush_recessed"},
-            "pg": {"name": "PG Light", "command": "pg_light"},
-            "magneto": {"name": "Magneto Track", "command": "magneto_track"}
-        }
+        # Lighting system specifications from config
+        self.lighting_systems = config.LIGHTING_SYSTEMS
         
-        # Mounting options
-        self.mounting_options = [
-            "wall_mount", "ceiling_mount", "suspension", "track_mount", 
-            "recessed", "surface_mount", "pendant"
-        ]
+        # Mounting options from config
+        self.mounting_options = config.MOUNTING_OPTIONS
         
-        # Lens options
-        self.lens_options = [
-            "clear", "frosted", "prismatic", "louvered", "reflector",
-            "diffuser", "lens_cover"
-        ]
+        # Lens options from config
+        self.lens_options = config.LENS_OPTIONS
         
-        # Color temperature options
-        self.color_temps = [
-            "2700k", "3000k", "3500k", "4000k", "5000k", "6500k"
-        ]
+        # Color temperature options from config
+        self.color_temps = config.COLOR_TEMPERATURES
         
         logger.info("AutoDraw AI Agent initialized successfully")
     
@@ -338,43 +305,128 @@ class AutoDrawAIAgent:
     def _to_variant_3d_point(self, point):
         return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, point)
 
-    def _draw_lighting_fixture(self, specs, modelspace):
+    def _execute_autodraw_command(self, command: str, specifications: Dict, doc) -> bool:
         """
-        Draw a linear light fixture in AutoCAD using start/end points.
+        Execute AutoDraw palette commands using SendCommand.
+        
+        Args:
+            command: The AutoDraw command to execute (e.g., "_LSAUTO", "_RushAuto")
+            specifications: Drawing specifications
+            doc: AutoCAD document object
+            
+        Returns:
+            True if successful, False otherwise
         """
         try:
-            start = specs["position"]["start_point"]
-            end = specs["position"]["end_point"]
-            length = specs["dimensions"]["length"]
-            width = specs["dimensions"]["width"]
-            wattage = specs["specifications"]["wattage"]
-
-            logger.info(f"Drawing linear light from {start} to {end} "
-                            f"with length={length}, width={width}, wattage={wattage}")
-
-            # Basic polyline between start and end points
-            start_point = self._convert_to_3d_point(start)
-            end_point = self._convert_to_3d_point(end)
-            logger.debug(f"Converted start_point: {start_point}, end_point: {end_point}")
+            logger.info(f"Executing AutoDraw command: {command}")
             
-            # Ensure start and end points are valid
-            if not isinstance(start_point, tuple) or not isinstance(end_point, tuple):
-                raise ValueError("Invalid start or end point format. Must be a list or tuple of numbers.")
-
-            # Example: create a simple line between start and end
-            try:
-                modelspace.AddLine(self._to_variant_3d_point(start_point), self._to_variant_3d_point(end_point))
-            except Exception as e:
-                print("Drawing creation failed!")
-                traceback.print_exc()
-                return False  # ✅ Explicit failure
-
-            # You can expand this to draw a rectangle, block, or more
-            logger.info("Successfully drew linear light fixture.")
-            return True  # ✅ Explicit success
+            # Prepare command parameters based on specifications
+            params = self._prepare_autodraw_parameters(specifications)
+            
+            # Build the complete command string
+            full_command = f"{command} {params}"
+            logger.info(f"Full command: {full_command}")
+            
+            # Execute the command
+            doc.SendCommand(full_command + "\n")
+            
+            # Wait for command completion
+            self._wait_for_command_completion()
+            
+            logger.info(f"Successfully executed {command}")
+            return True
+            
         except Exception as e:
-            logger.error(f"Failed to draw linear light: {str(e)}")
-            raise
+            logger.error(f"Failed to execute {command}: {str(e)}")
+            return False
+    
+    def _prepare_autodraw_parameters(self, specifications: Dict) -> str:
+        """
+        Prepare parameters for AutoDraw commands based on specifications.
+        
+        Args:
+            specifications: Drawing specifications
+            
+        Returns:
+            Formatted parameter string for AutoDraw commands
+        """
+        params = []
+        
+        # Helper to safely convert values
+        def safe_str(val, default=""):
+            return str(val) if val is not None else default
+        
+        # Add position parameters if available
+        if 'position' in specifications:
+            pos = specifications['position']
+            if 'start_point' in pos:
+                start = pos['start_point']
+                if isinstance(start, (list, tuple)) and len(start) >= 2:
+                    params.extend([safe_str(start[0]), safe_str(start[1])])
+            if 'end_point' in pos:
+                end = pos['end_point']
+                if isinstance(end, (list, tuple)) and len(end) >= 2:
+                    params.extend([safe_str(end[0]), safe_str(end[1])])
+        
+        # Add dimension parameters
+        if 'dimensions' in specifications:
+            dims = specifications['dimensions']
+            if 'length' in dims:
+                params.append(safe_str(dims['length']))
+            if 'width' in dims:
+                params.append(safe_str(dims['width']))
+            if 'height' in dims:
+                params.append(safe_str(dims['height']))
+        
+        # Add specification parameters
+        if 'specifications' in specifications:
+            specs = specifications['specifications']
+            if 'wattage' in specs:
+                params.append(safe_str(specs['wattage']))
+            if 'color_temperature' in specs:
+                params.append(safe_str(specs['color_temperature']))
+            if 'lens_type' in specs:
+                params.append(safe_str(specs['lens_type']))
+            if 'mounting_type' in specs:
+                params.append(safe_str(specs['mounting_type']))
+            if 'quantity' in specs:
+                params.append(safe_str(specs['quantity']))
+        
+        # Add additional parameters
+        if 'additional_parameters' in specifications:
+            add_params = specifications['additional_parameters']
+            if 'spacing' in add_params:
+                params.append(safe_str(add_params['spacing']))
+            if 'voltage' in add_params:
+                params.append(safe_str(add_params['voltage']))
+            if 'emergency_backup' in add_params:
+                params.append(safe_str(add_params['emergency_backup']))
+            if 'dimmable' in add_params:
+                params.append(safe_str(add_params['dimmable']))
+            if 'ip_rating' in add_params:
+                params.append(safe_str(add_params['ip_rating']))
+        
+        return " ".join(params)
+    
+    def _draw_lighting_fixture(self, specs, modelspace):
+        """
+        Draw a lighting fixture using AutoDraw palette commands.
+        """
+        try:
+            command = specs.get('command')
+            if not command:
+                logger.error("No command specified for lighting fixture")
+                return False
+            
+            # Get AutoCAD objects for current thread
+            autocad, doc, modelspace = self._get_autocad_objects()
+            
+            # Execute the appropriate AutoDraw command
+            return self._execute_autodraw_command(command, specs, doc)
+            
+        except Exception as e:
+            logger.error(f"Failed to draw lighting fixture: {str(e)}")
+            return False
 
 
     def execute_drawing_command(self, specifications: Dict) -> bool:
@@ -389,12 +441,20 @@ class AutoDrawAIAgent:
         """
         try:
             command = specifications.get('command')
-            if not command or command not in self.command_map:
-                logger.error(f"Invalid command: {command}")
+            if not command:
+                logger.error("No command specified")
                 return False
 
             # Get AutoCAD objects for current thread
             autocad, doc, modelspace = self._get_autocad_objects()
+
+            # Get the actual AutoDraw command from the command map
+            autodraw_command = self.command_map.get(command)
+            if not autodraw_command:
+                logger.error(f"Unknown command: {command}")
+                return False
+
+            logger.info(f"Executing command: {command} -> {autodraw_command}")
 
             # Execute based on command type
             if command in ["linear_light", "linear_light_reflector", "rush_light", "rush_recessed", "pg_light", "magneto_track"]:
@@ -408,8 +468,8 @@ class AutoDrawAIAgent:
             elif command == "purge_all":
                 return self._purge_drawing(doc)
             else:
-                logger.error(f"Unknown command type: {command}")
-                return False
+                # For any other command, try to execute it directly
+                return self._execute_autodraw_command(autodraw_command, specifications, doc)
 
         except Exception as e:
             logger.error(f"Error executing drawing command: {e}")
@@ -470,6 +530,67 @@ class AutoDrawAIAgent:
         
         logger.warning("Command execution timeout")
     
+    def _repeat_last_command(self, specifications: Dict, modelspace) -> bool:
+        """Repeat the last command using LSREP."""
+        try:
+            autocad, doc, modelspace = self._get_autocad_objects()
+            return self._execute_autodraw_command("_LSREP", specifications, doc)
+        except Exception as e:
+            logger.error(f"Failed to repeat last command: {e}")
+            return False
+    
+    def _add_text_annotation(self, specifications: Dict, modelspace) -> bool:
+        """Add text annotations using appropriate AutoDraw commands."""
+        try:
+            command = specifications.get('command')
+            autocad, doc, modelspace = self._get_autocad_objects()
+            
+            # Map command to appropriate AutoDraw command
+            command_mapping = {
+                "details": "_Details",
+                "output_modifier": "_CustomLumenCalculator",
+                "driver_calculator": "_DriverCalculator",
+                "driver_update": "_DriverUpdater",
+                "runid_update": "_RunID",
+                "susp_kit_count": "_SuspCnt",
+                "ww_toggle": "_ArrowToggle"
+            }
+            
+            autodraw_command = command_mapping.get(command, command)
+            return self._execute_autodraw_command(autodraw_command, specifications, doc)
+            
+        except Exception as e:
+            logger.error(f"Failed to add text annotation: {e}")
+            return False
+    
+    def _insert_block(self, specifications: Dict, modelspace) -> bool:
+        """Insert blocks using appropriate AutoDraw commands."""
+        try:
+            command = specifications.get('command')
+            autocad, doc, modelspace = self._get_autocad_objects()
+            
+            # Map command to appropriate AutoDraw command
+            command_mapping = {
+                "add_empck": "_ADDEM",
+                "import_assets": "_ImportAssets",
+                "redefine_blocks": "_BlockRedefine"
+            }
+            
+            autodraw_command = command_mapping.get(command, command)
+            return self._execute_autodraw_command(autodraw_command, specifications, doc)
+            
+        except Exception as e:
+            logger.error(f"Failed to insert block: {e}")
+            return False
+    
+    def _purge_drawing(self, doc) -> bool:
+        """Purge drawing using PALL command."""
+        try:
+            return self._execute_autodraw_command("_PALL", {}, doc)
+        except Exception as e:
+            logger.error(f"Failed to purge drawing: {e}")
+            return False
+    
     def create_complete_drawing(self, user_input: str) -> Dict:
         """
         Create a complete AutoCAD drawing from natural language input.
@@ -518,16 +639,22 @@ class AutoDrawAIAgent:
     
     def _validate_specifications(self, specifications: Dict) -> bool:
         """Validate parsed specifications."""
-        required_fields = ['command', 'lighting_system']
+        # Check if command exists
+        if 'command' not in specifications:
+            logger.error("Missing required field: command")
+            return False
         
-        for field in required_fields:
-            if field not in specifications:
-                logger.error(f"Missing required field: {field}")
-                return False
-        
+        # Check if command is valid
         if specifications['command'] not in self.command_map:
             logger.error(f"Invalid command: {specifications['command']}")
             return False
+        
+        # For lighting system commands, check if lighting_system is specified
+        lighting_commands = ["linear_light", "linear_light_reflector", "rush_light", "rush_recessed", "pg_light", "magneto_track"]
+        if specifications['command'] in lighting_commands:
+            if 'lighting_system' not in specifications:
+                logger.warning(f"Lighting system not specified for command: {specifications['command']}")
+                # Don't fail validation for this, just warn
         
         return True
     

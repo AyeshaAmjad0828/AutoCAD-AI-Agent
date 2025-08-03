@@ -2,4 +2,14 @@ Draw a 10-foot linear light from point 5,5 to 15,5 with 50W power and 4000K colo
 Create a rush light fixture 8 feet long, 4 inches wide, mounted on ceiling with frosted lens
 Design a magneto track system 12 feet long with 75W fixtures every 2 feet
 Generate a PG light 6 feet long with 40W power and 3000K color temperature
-Create a linear light with reflector 15 feet long, 6 inches wide, with emergency backup 
+Create a linear light with reflector 15 feet long, 6 inches wide, with emergency backup
+Add emergency pack to the current drawing
+Calculate driver specifications for 60W linear light
+Update driver brand for existing fixtures
+Add suspension kit count for ceiling mounted fixtures
+Import all lighting assets and blocks
+Redefine all blocks in the drawing
+Purge all unused elements from the drawing
+Create a rush recessed fixture 10 feet long with 75W power and 3500K color temperature
+Generate details annotation for the lighting system
+Toggle wire way arrows for better visualization 

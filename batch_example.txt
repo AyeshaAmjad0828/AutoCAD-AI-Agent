@@ -1,6 +1,0 @@
-Draw a 10-foot linear light from point 5,5 to 15,5 with 50W power and 4000K color temperature
-Create a rush light fixture 8 feet long, 4 inches wide, mounted on ceiling with frosted lens
-Design a magneto track system 12 feet long with 75W fixtures every 2 feet
-Generate a PG light fixture 6 feet long with 40W power and 3500K color temperature
-Create a linear light with reflector 15 feet long, wall mounted with clear lens
-Design a rush recessed fixture 10 feet long with 75W power and 5000K color temperature 
