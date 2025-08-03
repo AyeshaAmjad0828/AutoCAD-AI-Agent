@@ -316,6 +316,44 @@ class AutoDrawAIAgent:
         Use standard units (feet for length, inches for width/height, watts for power, etc.).
         """
     
+    def _convert_to_3d_point(self, point_list):
+        """
+        Converts [x, y, z] or [x, y] list into a 3D AutoCAD point (tuple of 3 floats).
+        """
+        x = float(point_list[0])
+        y = float(point_list[1])
+        z = float(point_list[2]) if len(point_list) > 2 and point_list[2] is not None else 0.0
+        return (x, y, z)
+
+
+    def _draw_linear_light(self, specs):
+        """
+        Draw a linear light fixture in AutoCAD using start/end points.
+        """
+        try:
+            start = specs["position"]["start_point"]
+            end = specs["position"]["end_point"]
+            length = specs["dimensions"]["length"]
+            width = specs["dimensions"]["width"]
+            wattage = specs["specifications"]["wattage"]
+
+            self.logger.info(f"Drawing linear light from {start} to {end} "
+                            f"with length={length}, width={width}, wattage={wattage}")
+
+            # Basic polyline between start and end points
+            start_point = self._convert_to_3d_point(start)
+            end_point = self._convert_to_3d_point(end)
+
+            # Example: create a simple line between start and end
+            self.model_space.AddLine(start_point, end_point)
+
+            # You can expand this to draw a rectangle, block, or more
+            self.logger.info("✅ Successfully drew linear light fixture.")
+        except Exception as e:
+            self.logger.error(f"Failed to draw linear light: {str(e)}")
+            raise
+
+
     def execute_drawing_command(self, specifications: Dict) -> bool:
         """
         Execute the AutoCAD drawing command based on parsed specifications.
