@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 import threading
 import pythoncom
+import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -316,17 +317,28 @@ class AutoDrawAIAgent:
         Use standard units (feet for length, inches for width/height, watts for power, etc.).
         """
     
+
     def _convert_to_3d_point(self, point_list):
         """
-        Converts [x, y, z] or [x, y] list into a 3D AutoCAD point (tuple of 3 floats).
+        Converts [x, y, z] or [x, y] list into a 3D AutoCAD point (tuple of 3 floats),
+        safely handling None or invalid Z values.
         """
         x = float(point_list[0])
         y = float(point_list[1])
-        z = float(point_list[2]) if len(point_list) > 2 and point_list[2] is not None else 0.0
+
+        z = 0.0
+        if len(point_list) > 2:
+            try:
+                z = float(point_list[2])
+            except (ValueError, TypeError):
+                z = 0.0
+
         return (x, y, z)
 
+    def _to_variant_3d_point(self, point):
+        return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, point)
 
-    def _draw_linear_light(self, specs):
+    def _draw_lighting_fixture(self, specs, modelspace):
         """
         Draw a linear light fixture in AutoCAD using start/end points.
         """
@@ -337,20 +349,31 @@ class AutoDrawAIAgent:
             width = specs["dimensions"]["width"]
             wattage = specs["specifications"]["wattage"]
 
-            self.logger.info(f"Drawing linear light from {start} to {end} "
+            logger.info(f"Drawing linear light from {start} to {end} "
                             f"with length={length}, width={width}, wattage={wattage}")
 
             # Basic polyline between start and end points
             start_point = self._convert_to_3d_point(start)
             end_point = self._convert_to_3d_point(end)
+            logger.debug(f"Converted start_point: {start_point}, end_point: {end_point}")
+            
+            # Ensure start and end points are valid
+            if not isinstance(start_point, tuple) or not isinstance(end_point, tuple):
+                raise ValueError("Invalid start or end point format. Must be a list or tuple of numbers.")
 
             # Example: create a simple line between start and end
-            self.model_space.AddLine(start_point, end_point)
+            try:
+                modelspace.AddLine(self._to_variant_3d_point(start_point), self._to_variant_3d_point(end_point))
+            except Exception as e:
+                print("Drawing creation failed!")
+                traceback.print_exc()
+                return False  # ✅ Explicit failure
 
             # You can expand this to draw a rectangle, block, or more
-            self.logger.info("✅ Successfully drew linear light fixture.")
+            logger.info("Successfully drew linear light fixture.")
+            return True  # ✅ Explicit success
         except Exception as e:
-            self.logger.error(f"Failed to draw linear light: {str(e)}")
+            logger.error(f"Failed to draw linear light: {str(e)}")
             raise
 
 
