@@ -330,6 +330,10 @@ class AutoDrawAIAgent:
             # Execute the command
             doc.SendCommand(full_command + "\n")
             
+            # Give AutoCAD a moment to start processing the command
+            import time
+            time.sleep(0.5)
+            
             # Wait for command completion
             self._wait_for_command_completion()
             
@@ -352,9 +356,18 @@ class AutoDrawAIAgent:
         """
         params = []
         
-        # Helper to safely convert values
-        def safe_str(val, default=""):
-            return str(val) if val is not None else default
+        # Helper to safely convert values and validate ranges
+        def safe_str(val, default="", max_val=None):
+            if val is None:
+                return default
+            try:
+                num_val = float(val)
+                if max_val and num_val > max_val:
+                    logger.warning(f"Value {num_val} exceeds maximum {max_val}, using {max_val}")
+                    return str(max_val)
+                return str(num_val)
+            except (ValueError, TypeError):
+                return str(val) if val else default
         
         # Add position parameters if available
         if 'position' in specifications:
@@ -362,50 +375,53 @@ class AutoDrawAIAgent:
             if 'start_point' in pos:
                 start = pos['start_point']
                 if isinstance(start, (list, tuple)) and len(start) >= 2:
-                    params.extend([safe_str(start[0]), safe_str(start[1])])
+                    params.extend([safe_str(start[0], "0"), safe_str(start[1], "0")])
             if 'end_point' in pos:
                 end = pos['end_point']
                 if isinstance(end, (list, tuple)) and len(end) >= 2:
-                    params.extend([safe_str(end[0]), safe_str(end[1])])
+                    params.extend([safe_str(end[0], "10"), safe_str(end[1], "0")])
         
-        # Add dimension parameters
+        # Add dimension parameters with reasonable limits
         if 'dimensions' in specifications:
             dims = specifications['dimensions']
             if 'length' in dims:
-                params.append(safe_str(dims['length']))
+                params.append(safe_str(dims['length'], "10", 100))  # Max 100 feet
             if 'width' in dims:
-                params.append(safe_str(dims['width']))
+                params.append(safe_str(dims['width'], "4", 24))    # Max 24 inches
             if 'height' in dims:
-                params.append(safe_str(dims['height']))
+                params.append(safe_str(dims['height'], "4", 24))   # Max 24 inches
         
         # Add specification parameters
         if 'specifications' in specifications:
             specs = specifications['specifications']
             if 'wattage' in specs:
-                params.append(safe_str(specs['wattage']))
+                params.append(safe_str(specs['wattage'], "50", 1000))  # Max 1000W
             if 'color_temperature' in specs:
-                params.append(safe_str(specs['color_temperature']))
+                # Remove 'k' suffix if present and validate
+                temp = str(specs['color_temperature']).lower().replace('k', '')
+                params.append(safe_str(temp, "4000", 6500))  # Max 6500K
             if 'lens_type' in specs:
-                params.append(safe_str(specs['lens_type']))
+                params.append(safe_str(specs['lens_type'], "clear"))
             if 'mounting_type' in specs:
-                params.append(safe_str(specs['mounting_type']))
+                params.append(safe_str(specs['mounting_type'], "ceiling_mount"))
             if 'quantity' in specs:
-                params.append(safe_str(specs['quantity']))
+                params.append(safe_str(specs['quantity'], "1", 100))  # Max 100 units
         
         # Add additional parameters
         if 'additional_parameters' in specifications:
             add_params = specifications['additional_parameters']
             if 'spacing' in add_params:
-                params.append(safe_str(add_params['spacing']))
+                params.append(safe_str(add_params['spacing'], "0", 50))  # Max 50 feet
             if 'voltage' in add_params:
-                params.append(safe_str(add_params['voltage']))
+                params.append(safe_str(add_params['voltage'], "120", 480))  # Max 480V
             if 'emergency_backup' in add_params:
-                params.append(safe_str(add_params['emergency_backup']))
+                params.append(safe_str(add_params['emergency_backup'], "false"))
             if 'dimmable' in add_params:
-                params.append(safe_str(add_params['dimmable']))
+                params.append(safe_str(add_params['dimmable'], "false"))
             if 'ip_rating' in add_params:
-                params.append(safe_str(add_params['ip_rating']))
+                params.append(safe_str(add_params['ip_rating'], "20"))
         
+        logger.info(f"Prepared parameters: {' '.join(params)}")
         return " ".join(params)
     
     def _draw_lighting_fixture(self, specs, modelspace):
@@ -418,11 +434,17 @@ class AutoDrawAIAgent:
                 logger.error("No command specified for lighting fixture")
                 return False
             
+            # Get the actual AutoDraw command from the command map
+            autodraw_command = self.command_map.get(command)
+            if not autodraw_command:
+                logger.error(f"Unknown command: {command}")
+                return False
+            
             # Get AutoCAD objects for current thread
             autocad, doc, modelspace = self._get_autocad_objects()
             
             # Execute the appropriate AutoDraw command
-            return self._execute_autodraw_command(command, specs, doc)
+            return self._execute_autodraw_command(autodraw_command, specs, doc)
             
         except Exception as e:
             logger.error(f"Failed to draw lighting fixture: {str(e)}")
@@ -522,13 +544,16 @@ class AutoDrawAIAgent:
                 
                 # Check if command is still running
                 if not doc.CommandInProgress:
+                    logger.info("Command completed successfully")
                     return
                 time.sleep(0.1)
             except Exception as e:
                 logger.error(f"Error waiting for command completion: {e}")
                 time.sleep(0.1)
         
-        logger.warning("Command execution timeout")
+        logger.warning("Command execution timeout - proceeding anyway")
+        # Don't fail the command if timeout occurs, as some commands might complete
+        # but not properly report their completion status
     
     def _repeat_last_command(self, specifications: Dict, modelspace) -> bool:
         """Repeat the last command using LSREP."""
