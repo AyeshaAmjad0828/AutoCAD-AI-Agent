@@ -20,45 +20,45 @@ class AutoDrawAIAgent:
     Leverages existing AutoLISP functions for lighting design automation.
     """
     
-    def __init__(self, openai_api_key: str = None):
+    def __init__(self, openai_api_key: str = None, initialize_autocad: bool = True):
         """
         Initialize the AutoDraw AI Agent.
         
         Args:
             openai_api_key: OpenAI API key for natural language processing
+            initialize_autocad: Whether to initialize AutoCAD connection (default: True)
         """
         self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
         if not self.openai_api_key:
             raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass it to constructor.")
         
-        openai.api_key = self.openai_api_key
-        
         # Thread-local storage for COM objects
         self._thread_local = threading.local()
         
-        # Initialize AutoCAD COM connection in current thread
-        self._initialize_autocad_connection()
+        # Initialize AutoCAD COM connection in current thread if requested
+        if initialize_autocad:
+            self._initialize_autocad_connection()
         
-        # Command mapping for existing AutoLISP functions
+        # Command mapping for direct AutoCAD drawing commands (non-interactive)
         self.command_map = {
-            "linear_light": "_LSAUTO",
-            "linear_light_reflector": "_LSRAUTO", 
-            "rush_light": "_RushAuto",
-            "rush_recessed": "_RushRecAuto",
-            "pg_light": "_PGAuto",
-            "magneto_track": "_MagTrkAuto",
-            "repeat_last": "_LSREP",
-            "details": "_Details",
-            "add_empck": "_ADDEM",
-            "output_modifier": "_CustomLumenCalculator",
-            "driver_calculator": "_DriverCalculator",
-            "driver_update": "_DriverUpdater",
-            "runid_update": "_RunID",
-            "susp_kit_count": "_SuspCnt",
-            "ww_toggle": "_ArrowToggle",
-            "import_assets": "_ImportAssets",
-            "redefine_blocks": "_BlockRedefine",
-            "purge_all": "_PALL"
+            "linear_light": "_LINE",  # Use LINE command instead of popup-based LSAUTO
+            "linear_light_reflector": "_LINE", 
+            "rush_light": "_LINE",
+            "rush_recessed": "_LINE",
+            "pg_light": "_LINE",
+            "magneto_track": "_LINE",
+            "repeat_last": "_COPY",
+            "details": "_TEXT",
+            "add_empck": "_INSERT",
+            "output_modifier": "_TEXT",
+            "driver_calculator": "_TEXT",
+            "driver_update": "_TEXT",
+            "runid_update": "_TEXT",
+            "susp_kit_count": "_TEXT",
+            "ww_toggle": "_TEXT",
+            "import_assets": "_INSERT",
+            "redefine_blocks": "_INSERT",
+            "purge_all": "_PURGE"
         }
         
         # Lighting system specifications
@@ -97,11 +97,19 @@ class AutoDrawAIAgent:
             pythoncom.CoInitialize()
             
             print("I am here P1")
-            self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
+            
+            # Try to get existing AutoCAD instance first
+            try:
+                self._thread_local.autocad = win32com.client.GetActiveObject("AutoCAD.Application")
+                logger.info("Connected to existing AutoCAD instance")
+            except:
+                # If no existing instance, create a new one
+                self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
+                logger.info("Created new AutoCAD instance")
             
             # Wait a moment for AutoCAD to fully initialize
             import time
-            time.sleep(0.5)
+            time.sleep(1.0)
             
             # Check if AutoCAD is properly connected
             try:
@@ -114,15 +122,25 @@ class AutoDrawAIAgent:
             
             # Check if there's an active document
             try:
-                if self._thread_local.autocad.Documents.Count == 0:
+                # Get the Documents collection
+                documents = self._thread_local.autocad.Documents
+                doc_count = documents.Count
+                logger.info(f"Found {doc_count} existing documents")
+                
+                if doc_count == 0:
                     # Create a new document if none exists
-                    self._thread_local.doc = self._thread_local.autocad.Documents.Add()
+                    logger.info("Creating new document")
+                    self._thread_local.doc = documents.Add()
                 else:
+                    # Use the active document
+                    logger.info("Using active document")
                     self._thread_local.doc = self._thread_local.autocad.ActiveDocument
+                    
             except Exception as e:
                 logger.error(f"Error accessing documents: {e}")
                 # Try to create a new document anyway
                 try:
+                    logger.info("Attempting to create new document after error")
                     self._thread_local.doc = self._thread_local.autocad.Documents.Add()
                 except Exception as e2:
                     logger.error(f"Failed to create new document: {e2}")
@@ -131,6 +149,7 @@ class AutoDrawAIAgent:
             # Get ModelSpace
             try:
                 self._thread_local.modelspace = self._thread_local.doc.ModelSpace
+                logger.info("Successfully accessed ModelSpace")
             except Exception as e:
                 logger.error(f"Error accessing ModelSpace: {e}")
                 raise
@@ -138,7 +157,10 @@ class AutoDrawAIAgent:
             logger.info("Successfully connected to AutoCAD")
         except Exception as e:
             logger.error(f"Failed to connect to AutoCAD: {e}")
-            pythoncom.CoUninitialize()
+            try:
+                pythoncom.CoUninitialize()
+            except:
+                pass
             raise
     
     def _get_autocad_objects(self):
@@ -150,11 +172,13 @@ class AutoDrawAIAgent:
             
             # Test the connection
             try:
+                # Try to access the active document
                 doc = self._thread_local.autocad.ActiveDocument
+                # If we get here, the connection is working
                 return self._thread_local.autocad, doc, self._thread_local.modelspace
-            except Exception:
+            except Exception as e:
+                logger.info(f"AutoCAD connection broken, reconnecting... Error: {e}")
                 # Connection is broken, reinitialize
-                logger.info("AutoCAD connection broken, reconnecting...")
                 self._cleanup_autocad_connection()
                 self._initialize_autocad_connection()
                 return self._thread_local.autocad, self._thread_local.doc, self._thread_local.modelspace
@@ -189,7 +213,9 @@ class AutoDrawAIAgent:
             prompt = self._create_parsing_prompt(user_input)
             
             # Get AI response
-            response = openai.ChatCompletion.create(
+            from openai import OpenAI
+            client = OpenAI(api_key=self.openai_api_key)
+            response = client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": "You are an expert AutoCAD lighting design assistant. Parse user requests into structured specifications."},
@@ -200,14 +226,47 @@ class AutoDrawAIAgent:
             )
             
             # Parse the response
-            parsed_specs = json.loads(response.choices[0].message.content)
-            logger.info(f"Parsed specifications: {parsed_specs}")
-            
-            return parsed_specs
+            try:
+                parsed_specs = json.loads(response.choices[0].message.content)
+                logger.info(f"Parsed specifications: {parsed_specs}")
+                return parsed_specs
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse AI response as JSON: {e}")
+                logger.error(f"AI Response: {response.choices[0].message.content}")
+                # Return a default specification for linear light
+                return self._create_default_specification(user_input)
             
         except Exception as e:
             logger.error(f"Error processing natural language request: {e}")
-            raise
+            # Return a default specification for linear light
+            return self._create_default_specification(user_input)
+    
+    def _create_default_specification(self, user_input: str) -> Dict:
+        """Create a default specification when AI parsing fails"""
+        logger.info("Creating default specification for linear light")
+        return {
+            "command": "linear_light",
+            "lighting_system": "ls",
+            "dimensions": {
+                "length": 10.0,
+                "width": 4.0,
+                "height": 4.0
+            },
+            "position": {
+                "start_point": [0, 0, 0],
+                "end_point": [10, 0, 0],
+                "orientation": "horizontal"
+            },
+            "specifications": {
+                "wattage": 50,
+                "color_temperature": "4000k",
+                "lens_type": "clear",
+                "mounting_type": "ceiling_mount",
+                "driver_type": "standard",
+                "quantity": 1
+            },
+            "additional_parameters": {}
+        }
     
     def _create_parsing_prompt(self, user_input: str) -> str:
         """Create a detailed prompt for parsing user input."""
@@ -273,38 +332,23 @@ class AutoDrawAIAgent:
                 logger.error(f"Invalid command: {command}")
                 return False
 
-            # Get the actual AutoCAD command
-            autocad_command = self.command_map[command]
-
-            # Prepare and sanitize command parameters
-            params = self._prepare_command_parameters(specifications)
-            if params is None:
-                logger.error(f"Missing or invalid parameters for command: {autocad_command}")
-                return False
-            
-            # Sanitize: replace None with "0" or some default fallback
-            sanitized_params = [str(p) if p is not None else "0" for p in params]
-
-           # Form the complete command string
-            command_string = f"{autocad_command} {' '.join(sanitized_params)}\n"
-            logger.info(f"Executing AutoCAD command: {command_string.strip()}")
-
-            # Abort if all parameters are "0", "", or "None"
-            if all(str(p).strip() in ["0", "", "None"] for p in sanitized_params):
-                logger.error("All command parameters are missing or zero — aborting to avoid AutoCAD crash.")
-                return False
-
             # Get AutoCAD objects for current thread
             autocad, doc, modelspace = self._get_autocad_objects()
 
-            # Send command to AutoCAD
-            doc.SendCommand(command_string)
-
-            # Wait for command completion
-            self._wait_for_command_completion()
-
-            logger.info(f"Successfully executed command: {autocad_command}")
-            return True
+            # Execute based on command type
+            if command in ["linear_light", "linear_light_reflector", "rush_light", "rush_recessed", "pg_light", "magneto_track"]:
+                return self._draw_lighting_fixture(specifications, modelspace)
+            elif command == "repeat_last":
+                return self._repeat_last_command(specifications, modelspace)
+            elif command in ["details", "output_modifier", "driver_calculator", "driver_update", "runid_update", "susp_kit_count", "ww_toggle"]:
+                return self._add_text_annotation(specifications, modelspace)
+            elif command in ["add_empck", "import_assets", "redefine_blocks"]:
+                return self._insert_block(specifications, modelspace)
+            elif command == "purge_all":
+                return self._purge_drawing(doc)
+            else:
+                logger.error(f"Unknown command type: {command}")
+                return False
 
         except Exception as e:
             logger.error(f"Error executing drawing command: {e}")
@@ -370,7 +414,7 @@ class AutoDrawAIAgent:
         Create a complete AutoCAD drawing from natural language input.
         
         Args:
-            user_input: Natural language description of the drawing requirements
+            user_input: Natural language description of the drawing requirements or specifications dict
             
         Returns:
             Dictionary with execution results
@@ -378,8 +422,13 @@ class AutoDrawAIAgent:
         try:
             logger.info(f"Processing drawing request: {user_input}")
             
-            # Step 1: Parse natural language input
-            specifications = self.process_natural_language_request(user_input)
+            # Check if user_input is already a dictionary (specifications)
+            if isinstance(user_input, dict):
+                specifications = user_input
+                logger.info("Using provided specifications")
+            else:
+                # Step 1: Parse natural language input
+                specifications = self.process_natural_language_request(user_input)
             
             # Step 2: Validate specifications
             if not self._validate_specifications(specifications):

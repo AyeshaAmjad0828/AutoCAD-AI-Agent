@@ -338,22 +338,24 @@ Examples:
         
         print("="*50 + "\n")
     
-    def process_natural_language(self, natural_input: str) -> Dict:
+    def process_natural_language(self, natural_input: str, dry_run: bool = False) -> Dict:
         """Process natural language input using the AI agent"""
         try:
             if not self.agent:
-                self.agent = AutoDrawAIAgent()
+                # Don't initialize AutoCAD for dry runs
+                self.agent = AutoDrawAIAgent(initialize_autocad=not dry_run)
             
             return self.agent.process_natural_language_request(natural_input)
         except Exception as e:
             logger.error(f"Error processing natural language: {e}")
             return None
     
-    def execute_drawing(self, specs: Dict) -> Dict:
+    def execute_drawing(self, specs: Dict, dry_run: bool = False) -> Dict:
         """Execute the drawing command"""
         try:
             if not self.agent:
-                self.agent = AutoDrawAIAgent()
+                # Don't initialize AutoCAD for dry runs
+                self.agent = AutoDrawAIAgent(initialize_autocad=not dry_run)
             
             return self.agent.create_complete_drawing(specs)
         except Exception as e:
@@ -405,13 +407,37 @@ Examples:
             print("AutoDraw AI Agent - Command Line Interface")
             print("="*50)
             
+            # Test AutoCAD connection if not in dry-run mode
+            if not args.dry_run:
+                logger.info("Testing AutoCAD connection...")
+                try:
+                    import win32com.client
+                    import pythoncom
+                    
+                    pythoncom.CoInitialize()
+                    try:
+                        autocad = win32com.client.GetActiveObject("AutoCAD.Application")
+                        logger.info(f"✅ AutoCAD connection verified: {autocad.Name}")
+                    except Exception as e:
+                        logger.error(f"❌ AutoCAD not accessible: {e}")
+                        print("Please ensure AutoCAD is running before using this tool.")
+                        print("You can test the connection with: python test_autocad_connection.py")
+                        sys.exit(1)
+                    finally:
+                        pythoncom.CoUninitialize()
+                except ImportError:
+                    logger.error("pywin32 not installed. Please install it with: pip install pywin32")
+                    sys.exit(1)
+            
             # Process based on input method
             if args.natural:
                 # Natural language processing
                 logger.info("Processing natural language request")
-                specs = self.process_natural_language(args.natural)
+                specs = self.process_natural_language(args.natural, dry_run=args.dry_run)
                 if not specs:
                     logger.error("Failed to parse natural language request")
+                    print("❌ Could not parse the natural language request.")
+                    print("Please try a different description or use parameter-based specification.")
                     sys.exit(1)
                 
                 if args.verbose:
@@ -422,7 +448,7 @@ Examples:
                     return
                 
                 # Execute drawing
-                result = self.execute_drawing(specs)
+                result = self.execute_drawing(specs, dry_run=args.dry_run)
                 
             elif args.batch_file:
                 # Batch processing
@@ -437,7 +463,7 @@ Examples:
                 execution_results = []
                 for i, specs in enumerate(results, 1):
                     logger.info(f"Executing drawing {i}/{len(results)}")
-                    result = self.execute_drawing(specs)
+                    result = self.execute_drawing(specs, dry_run=args.dry_run)
                     execution_results.append(result)
                 
                 result = {
@@ -467,7 +493,7 @@ Examples:
                     return
                 
                 # Execute drawing
-                result = self.execute_drawing(specs)
+                result = self.execute_drawing(specs, dry_run=args.dry_run)
             
             # Handle results
             if result.get("success"):
