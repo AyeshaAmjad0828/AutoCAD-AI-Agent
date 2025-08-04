@@ -57,6 +57,15 @@ Examples:
   # Create a rectangular array
   python cli_autodraw.py --command array --array-type rectangular --rows 3 --columns 4 --row-spacing 2 --column-spacing 2
   
+  # Insert a block
+  python cli_autodraw.py --command block --insertion-point 5,5 --block-name "test_block" --scale 1.0 --rotation 45
+  
+  # Import assets as blocks
+  python cli_autodraw.py --import-assets
+  
+  # List available blocks
+  python cli_autodraw.py --list-blocks
+  
   # Create from natural language description
   python cli_autodraw.py --natural "Draw a 10-foot linear light from point 5,5 to 15,5 with 50W power and 4000K color temperature"
   
@@ -89,6 +98,24 @@ Examples:
             '--command', '-c',
             choices=list(config.COMMAND_MAP.keys()),
             help='Specific AutoCAD command to execute (rectangle, circle, polyline, arc, ellipse, text, dimension, hatch, block, array, mirror, rotate, scale, offset, trim, extend, fillet, chamfer)'
+        )
+        
+        # Asset management group
+        asset_group = parser.add_argument_group('Asset Management')
+        asset_group.add_argument(
+            '--import-assets',
+            action='store_true',
+            help='Import all .dwg files from AD App&Assets folder as blocks'
+        )
+        asset_group.add_argument(
+            '--list-blocks',
+            action='store_true',
+            help='List all available blocks in the current drawing'
+        )
+        asset_group.add_argument(
+            '--assets-folder',
+            type=str,
+            help='Custom path to assets folder (default: AD App&Assets)'
         )
         
         # Dimensions group
@@ -666,14 +693,53 @@ Examples:
                     sys.exit(1)
             
             # Validate that at least one input method is provided
-            if not args.natural and not args.batch_file and not args.command and not args.system:
+            if not args.natural and not args.batch_file and not args.command and not args.system and not args.import_assets and not args.list_blocks:
                 logger.error("No input method specified")
                 print("Please specify one of the following:")
                 print("  --natural: Natural language description")
                 print("  --batch-file: File with multiple requests")
                 print("  --command: Direct AutoCAD command (rectangle, circle, etc.)")
                 print("  --system: Lighting system type")
+                print("  --import-assets: Import .dwg files as blocks")
+                print("  --list-blocks: List available blocks")
                 sys.exit(1)
+            
+            # Initialize agent for asset management commands
+            if args.import_assets or args.list_blocks:
+                if args.dry_run:
+                    print("Asset management commands require AutoCAD connection (cannot use --dry-run)")
+                    sys.exit(1)
+                
+                self.agent = AutoDrawAIAgent()
+            
+            # Handle asset management commands
+            if args.import_assets:
+                logger.info("Importing assets as blocks")
+                assets_folder = args.assets_folder
+                imported_blocks = self.agent.import_assets_as_blocks(assets_folder)
+                
+                if imported_blocks:
+                    print(f"✅ Successfully imported {len(imported_blocks)} blocks:")
+                    for block_name, file_path in imported_blocks.items():
+                        print(f"   {block_name}: {os.path.basename(file_path)}")
+                else:
+                    print("❌ No blocks were imported")
+                    sys.exit(1)
+                
+                return
+            
+            if args.list_blocks:
+                logger.info("Listing available blocks")
+                blocks = self.agent.list_available_blocks()
+                
+                if blocks:
+                    print(f"✅ Found {len(blocks)} blocks in the drawing:")
+                    for block_name in sorted(blocks):
+                        print(f"   {block_name}")
+                else:
+                    print("No blocks found in the drawing")
+                
+                return
             
             # Process based on input method
             if args.natural:

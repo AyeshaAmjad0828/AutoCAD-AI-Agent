@@ -660,6 +660,86 @@ class AutoDrawAIAgent:
             logger.error(f"Failed to add hatch: {str(e)}")
             return False
 
+    def import_assets_as_blocks(self, assets_folder: str = None) -> Dict:
+        """
+        Import AutoCAD drawing files from assets folder as blocks.
+        
+        Args:
+            assets_folder: Path to assets folder (default: AD App&Assets)
+            
+        Returns:
+            Dictionary of imported block names and their file paths
+        """
+        try:
+            if assets_folder is None:
+                # Use default assets folder
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                assets_folder = os.path.join(os.path.dirname(current_dir), "AD App&Assets")
+            
+            if not os.path.exists(assets_folder):
+                logger.error(f"Assets folder not found: {assets_folder}")
+                return {}
+            
+            # Get AutoCAD objects
+            autocad, doc, modelspace = self._get_autocad_objects()
+            
+            imported_blocks = {}
+            
+            # Find all .dwg files in the assets folder
+            for filename in os.listdir(assets_folder):
+                if filename.lower().endswith('.dwg'):
+                    file_path = os.path.join(assets_folder, filename)
+                    block_name = os.path.splitext(filename)[0]  # Remove .dwg extension
+                    
+                    try:
+                        # Import the drawing as a block
+                        logger.info(f"Importing {filename} as block '{block_name}'")
+                        
+                        # Use AutoCAD's InsertBlock method to import the drawing
+                        # This creates a block definition from the external drawing
+                        doc.InsertBlock(
+                            win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, [0, 0, 0]),  # Insertion point
+                            file_path,  # File path
+                            1.0, 1.0, 1.0,  # Scale factors
+                            0.0  # Rotation
+                        )
+                        
+                        imported_blocks[block_name] = file_path
+                        logger.info(f"Successfully imported block: {block_name}")
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to import {filename}: {e}")
+                        continue
+            
+            logger.info(f"Imported {len(imported_blocks)} blocks from assets folder")
+            return imported_blocks
+            
+        except Exception as e:
+            logger.error(f"Error importing assets: {e}")
+            return {}
+    
+    def list_available_blocks(self) -> List[str]:
+        """
+        List all available blocks in the current drawing.
+        
+        Returns:
+            List of block names
+        """
+        try:
+            autocad, doc, modelspace = self._get_autocad_objects()
+            
+            blocks = []
+            for i in range(doc.Blocks.Count):
+                block = doc.Blocks.Item(i)
+                if not block.IsLayout:  # Skip layout blocks
+                    blocks.append(block.Name)
+            
+            return blocks
+            
+        except Exception as e:
+            logger.error(f"Error listing blocks: {e}")
+            return []
+
     def _insert_block(self, specs, modelspace):
         """Insert a block in AutoCAD drawing."""
         try:
@@ -672,11 +752,61 @@ class AutoDrawAIAgent:
             
             logger.info(f"Inserting block '{block_name}' at {insert_pt}")
             
-            # Create block reference using AddBlockReference method
-            modelspace.AddBlockReference(insert_pt, block_name, scale, scale, scale, rotation)
+            # Get AutoCAD objects for current thread
+            autocad, doc, modelspace = self._get_autocad_objects()
             
-            logger.info("Successfully inserted block.")
-            return True
+            # Check if the block exists in the drawing
+            try:
+                # Try to get the block definition
+                block_def = doc.Blocks.Item(block_name)
+                logger.info(f"Found existing block: {block_name}")
+            except Exception as e:
+                logger.warning(f"Block '{block_name}' not found in drawing. Creating a simple rectangle as placeholder.")
+                
+                # Create a simple rectangle as a placeholder block
+                # Define rectangle points (1x1 unit)
+                x, y, z = insert_pt
+                rect_points = [
+                    (x, y, z),           # Bottom-left
+                    (x + 1, y, z),       # Bottom-right
+                    (x + 1, y + 1, z),   # Top-right
+                    (x, y + 1, z),       # Top-left
+                    (x, y, z)            # Back to start to close
+                ]
+                
+                # Convert points to variant array
+                point_array = []
+                for point in rect_points:
+                    point_array.extend(point)
+                
+                # Create closed polyline for rectangle
+                polyline = modelspace.AddPolyline(win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, point_array))
+                polyline.Closed = True
+                
+                # Add text label
+                text_point = (x + 0.5, y + 0.5, z)
+                text = modelspace.AddText(block_name, win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, list(text_point)), 0.1)
+                
+                logger.info(f"Created placeholder block '{block_name}' as rectangle with label")
+                return True
+            
+            # If block exists, try to insert it
+            try:
+                # Create block reference using AddBlockReference method
+                block_ref = modelspace.AddBlockReference(insert_pt, block_name, scale, scale, scale, rotation)
+                
+                # Apply rotation if specified
+                if rotation != 0.0:
+                    block_ref.Rotation = rotation * (3.14159 / 180.0)  # Convert degrees to radians
+                
+                logger.info("Successfully inserted block.")
+                return True
+                
+            except Exception as e:
+                logger.error(f"Failed to insert block '{block_name}': {str(e)}")
+                logger.info("This might be due to the block not being properly defined or accessible.")
+                return False
+                
         except Exception as e:
             logger.error(f"Failed to insert block: {str(e)}")
             return False
