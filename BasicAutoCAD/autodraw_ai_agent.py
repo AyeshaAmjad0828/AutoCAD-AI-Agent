@@ -118,56 +118,20 @@ class AutoDrawAIAgent:
             # Initialize COM for this thread
             pythoncom.CoInitialize()
             
-            logger.info("Attempting to connect to AutoCAD...")
+            print("I am here P1")
             
-            # Try multiple approaches to connect to AutoCAD
-            autocad_app = None
-            
-            # Method 1: Try to get existing AutoCAD instance
+            # Try to get existing AutoCAD instance first
             try:
-                logger.info("Trying to connect to existing AutoCAD instance...")
-                autocad_app = win32com.client.GetActiveObject("AutoCAD.Application")
-                logger.info("Successfully connected to existing AutoCAD instance")
-            except Exception as e:
-                logger.info(f"Could not connect to existing AutoCAD instance: {e}")
-                
-                # Method 2: Try to create a new AutoCAD instance
-                try:
-                    logger.info("Attempting to create new AutoCAD instance...")
-                    autocad_app = win32com.client.Dispatch("AutoCAD.Application")
-                    logger.info("Successfully created new AutoCAD instance")
-                except Exception as e2:
-                    logger.error(f"Could not create new AutoCAD instance: {e2}")
-                    
-                    # Method 3: Try with ProgID variations
-                    progids = [
-                        "AutoCAD.Application",
-                        "AutoCAD.Application.24",  # AutoCAD 2021
-                        "AutoCAD.Application.23",  # AutoCAD 2020
-                        "AutoCAD.Application.22",  # AutoCAD 2019
-                        "AutoCAD.Application.21",  # AutoCAD 2018
-                        "AutoCAD.Application.20",  # AutoCAD 2017
-                    ]
-                    
-                    for progid in progids:
-                        try:
-                            logger.info(f"Trying ProgID: {progid}")
-                            autocad_app = win32com.client.Dispatch(progid)
-                            logger.info(f"Successfully connected using ProgID: {progid}")
-                            break
-                        except Exception as e3:
-                            logger.info(f"Failed with ProgID {progid}: {e3}")
-                            continue
-                    
-                    if autocad_app is None:
-                        raise Exception("Could not connect to AutoCAD using any method. Please ensure AutoCAD is installed and running.")
-            
-            # Store the AutoCAD application
-            self._thread_local.autocad = autocad_app
+                self._thread_local.autocad = win32com.client.GetActiveObject("AutoCAD.Application")
+                logger.info("Connected to existing AutoCAD instance")
+            except:
+                # If no existing instance, create a new one
+                self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
+                logger.info("Created new AutoCAD instance")
             
             # Wait a moment for AutoCAD to fully initialize
             import time
-            time.sleep(2.0)
+            time.sleep(1.0)
             
             # Check if AutoCAD is properly connected
             try:
@@ -439,10 +403,12 @@ class AutoDrawAIAgent:
         return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, point)
 
     def _draw_lighting_fixture(self, specs, modelspace):
+        print("Running as:", os.getlogin())
         """
         Draw a linear light fixture in AutoCAD using start/end points.
         """
         try:
+
             # Validate required fields
             if "position" not in specs or "start_point" not in specs["position"] or "end_point" not in specs["position"]:
                 logger.error("Missing required position information")
@@ -459,7 +425,7 @@ class AutoDrawAIAgent:
             start = specs["position"]["start_point"]
             end = specs["position"]["end_point"]
             length = specs["dimensions"]["length"]
-            width = specs["dimensions"].get("width", 4)  # Default width
+            width = specs["dimensions"]["width"]
             wattage = specs["specifications"]["wattage"]
 
             logger.info(f"Drawing linear light from {start} to {end} "
@@ -472,24 +438,22 @@ class AutoDrawAIAgent:
             
             # Ensure start and end points are valid
             if not isinstance(start_point, tuple) or not isinstance(end_point, tuple):
-                logger.error("Invalid start or end point format. Must be a list or tuple of numbers.")
-                return False
+                raise ValueError("Invalid start or end point format. Must be a list or tuple of numbers.")
 
-            # Try to create a simple line between start and end
+            # Example: create a simple line between start and end
             try:
                 modelspace.AddLine(self._to_variant_3d_point(start_point), self._to_variant_3d_point(end_point))
-                logger.info("Successfully drew linear light fixture.")
-                return True
             except Exception as e:
-                logger.error(f"AutoCAD drawing failed: {str(e)}")
-                # For testing purposes, we'll return True even if AutoCAD fails
-                # In production, you might want to return False here
-                logger.warning("AutoCAD drawing failed, but continuing for test purposes")
-                return True
+                print("Drawing creation failed!")
+                traceback.print_exc()
+                return False  # ✅ Explicit failure
 
+            # You can expand this to draw a rectangle, block, or more
+            logger.info("Successfully drew linear light fixture.")
+            return True  # ✅ Explicit success
         except Exception as e:
             logger.error(f"Failed to draw linear light: {str(e)}")
-            return False
+            raise
 
     def _draw_rectangle(self, specs, modelspace):
         """Draw a rectangle in AutoCAD."""
@@ -925,13 +889,7 @@ class AutoDrawAIAgent:
                 return False
 
             # Get AutoCAD objects for current thread
-            try:
-                autocad, doc, modelspace = self._get_autocad_objects()
-            except Exception as e:
-                logger.error(f"Failed to get AutoCAD objects: {e}")
-                # For testing purposes, we'll continue even if AutoCAD is not available
-                logger.warning("AutoCAD not available, but continuing for test purposes")
-                return True
+            autocad, doc, modelspace = self._get_autocad_objects()
 
             # Execute based on command type
             if command in ["linear_light", "linear_light_reflector", "rush_light", "rush_recessed", "pg_light", "magneto_track"]:
@@ -1094,21 +1052,12 @@ class AutoDrawAIAgent:
             logger.error(f"Invalid command: {specifications['command']}")
             return False
         
-        # For lighting commands, we can infer the lighting system from the command if not provided
+        # Lighting system is only required for lighting-related commands
         lighting_commands = ["linear_light", "linear_light_reflector", "rush_light", "rush_recessed", "pg_light", "magneto_track"]
         if specifications['command'] in lighting_commands:
-            # If lighting_system is not provided, we can infer it from the command
             if 'lighting_system' not in specifications:
-                # Map commands to lighting systems
-                command_to_system = {
-                    "linear_light": "ls",
-                    "linear_light_reflector": "lsr", 
-                    "rush_light": "rush",
-                    "rush_recessed": "rush_rec",
-                    "pg_light": "pg",
-                    "magneto_track": "magneto"
-                }
-                specifications['lighting_system'] = command_to_system.get(specifications['command'], 'ls')
+                logger.error(f"Missing required field: lighting_system for command {specifications['command']}")
+                return False
         
         return True
     
