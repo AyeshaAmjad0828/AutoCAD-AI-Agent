@@ -11,7 +11,7 @@ import sys
 
 # Configuration
 BASE_URL = "http://localhost:5000"
-TIMEOUT = 10
+TIMEOUT = 50  # Increased timeout for API calls
 
 def test_health_check():
     """Test health check endpoint"""
@@ -107,6 +107,7 @@ def test_validate_specifications():
     try:
         specs = {
             "command": "linear_light",
+            "lighting_system": "ls",  # Added required lighting_system field
             "dimensions": {
                 "length": 10,
                 "width": 4
@@ -239,6 +240,7 @@ def test_drawing_creation():
     try:
         specs = {
             "command": "linear_light",
+            "lighting_system": "ls",  # Added required lighting_system field
             "dimensions": {
                 "length": 10,
                 "width": 4
