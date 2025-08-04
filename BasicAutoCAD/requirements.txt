@@ -1,5 +1,9 @@
-openai>=1.0.0
-pywin32>=306
-requests>=2.31.0
+Flask==2.3.3
+Flask-CORS==4.0.0
+openai==1.3.0
+pywin32==306
+pythoncom
+requests==2.31.0
+Werkzeug==2.3.7
 python-dotenv>=1.0.0
 typing-extensions>=4.0.0 
