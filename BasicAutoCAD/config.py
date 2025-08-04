@@ -27,6 +27,7 @@ DEFAULT_UNITS = {
 
 # Command Mapping
 COMMAND_MAP = {
+    # Original lighting system commands
     "linear_light": "_LSAUTO",
     "linear_light_reflector": "_LSRAUTO", 
     "rush_light": "_RushAuto",
@@ -44,7 +45,27 @@ COMMAND_MAP = {
     "ww_toggle": "_ArrowToggle",
     "import_assets": "_ImportAssets",
     "redefine_blocks": "_BlockRedefine",
-    "purge_all": "_PALL"
+    "purge_all": "_PALL",
+    
+    # New complex drawing commands
+    "rectangle": "rectangle",
+    "circle": "circle",
+    "polyline": "polyline",
+    "arc": "arc",
+    "ellipse": "ellipse",
+    "text": "text",
+    "dimension": "dimension",
+    "hatch": "hatch",
+    "block": "block",
+    "array": "array",
+    "mirror": "mirror",
+    "rotate": "rotate",
+    "scale": "scale",
+    "offset": "offset",
+    "trim": "trim",
+    "extend": "extend",
+    "fillet": "fillet",
+    "chamfer": "chamfer"
 }
 
 # Lighting Systems

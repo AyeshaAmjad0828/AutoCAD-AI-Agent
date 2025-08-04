@@ -65,8 +65,8 @@ Examples:
             """
         )
         
-        # Input method group
-        input_group = parser.add_mutually_exclusive_group(required=True)
+        # Input method group - make this optional since --command can be used independently
+        input_group = parser.add_mutually_exclusive_group(required=False)
         input_group.add_argument(
             '--natural', '-n',
             type=str,
@@ -653,9 +653,9 @@ Examples:
                     pythoncom.CoInitialize()
                     try:
                         autocad = win32com.client.GetActiveObject("AutoCAD.Application")
-                        logger.info(f"✅ AutoCAD connection verified: {autocad.Name}")
+                        logger.info(f"AutoCAD connection verified: {autocad.Name}")
                     except Exception as e:
-                        logger.error(f"❌ AutoCAD not accessible: {e}")
+                        logger.error(f"AutoCAD not accessible: {e}")
                         print("Please ensure AutoCAD is running before using this tool.")
                         print("You can test the connection with: python test_autocad_connection.py")
                         sys.exit(1)
@@ -665,6 +665,16 @@ Examples:
                     logger.error("pywin32 not installed. Please install it with: pip install pywin32")
                     sys.exit(1)
             
+            # Validate that at least one input method is provided
+            if not args.natural and not args.batch_file and not args.command and not args.system:
+                logger.error("No input method specified")
+                print("Please specify one of the following:")
+                print("  --natural: Natural language description")
+                print("  --batch-file: File with multiple requests")
+                print("  --command: Direct AutoCAD command (rectangle, circle, etc.)")
+                print("  --system: Lighting system type")
+                sys.exit(1)
+            
             # Process based on input method
             if args.natural:
                 # Natural language processing
@@ -672,7 +682,7 @@ Examples:
                 specs = self.process_natural_language(args.natural, dry_run=args.dry_run)
                 if not specs:
                     logger.error("Failed to parse natural language request")
-                    print("❌ Could not parse the natural language request.")
+                    print("Could not parse the natural language request.")
                     print("Please try a different description or use parameter-based specification.")
                     sys.exit(1)
                 
@@ -680,7 +690,7 @@ Examples:
                     self.print_specifications(specs)
                 
                 if args.dry_run:
-                    print("✅ Dry run completed - specifications parsed successfully")
+                    print("Dry run completed - specifications parsed successfully")
                     return
                 
                 # Execute drawing
@@ -692,7 +702,7 @@ Examples:
                 results = self.process_batch_file(args.batch_file)
                 
                 if args.dry_run:
-                    print(f"✅ Dry run completed - {len(results)} requests parsed")
+                    print(f"Dry run completed - {len(results)} requests parsed")
                     return
                 
                 # Execute all drawings
@@ -725,7 +735,7 @@ Examples:
                     self.print_specifications(specs)
                 
                 if args.dry_run:
-                    print("✅ Dry run completed - specifications validated successfully")
+                    print("Dry run completed - specifications validated successfully")
                     return
                 
                 # Execute drawing
@@ -733,11 +743,11 @@ Examples:
             
             # Handle results
             if result.get("success"):
-                print("✅ Drawing created successfully!")
+                print("Drawing created successfully!")
                 if args.verbose and 'summary' in result:
                     print(f"Summary: {result['summary']}")
             else:
-                print("❌ Drawing creation failed!")
+                print("Drawing creation failed!")
                 print(f"Error: {result.get('error', 'Unknown error')}")
                 sys.exit(1)
             
@@ -745,7 +755,7 @@ Examples:
             if args.output:
                 self.save_results(result, args.output)
             
-            print("🎉 Process completed successfully!")
+            print("Process completed successfully!")
             
         except KeyboardInterrupt:
             print("\n⚠️  Process interrupted by user")

@@ -120,16 +120,16 @@ def test_complex_drawings():
             )
             
             if result.returncode == 0:
-                print("✅ PASSED")
+                print("PASSED")
                 print(f"Output: {result.stdout.strip()}")
                 results.append({"name": test_case['name'], "status": "PASSED"})
             else:
-                print("❌ FAILED")
+                print("FAILED")
                 print(f"Error: {result.stderr.strip()}")
                 results.append({"name": test_case['name'], "status": "FAILED", "error": result.stderr.strip()})
                 
         except Exception as e:
-            print(f"❌ ERROR: {e}")
+            print(f"ERROR: {e}")
             results.append({"name": test_case['name'], "status": "ERROR", "error": str(e)})
     
     # Summary
@@ -176,14 +176,14 @@ def test_help():
             print("Checking for new commands in help:")
             for cmd in new_commands:
                 if cmd in help_text:
-                    print(f"  ✅ {cmd} found in help")
+                    print(f"  {cmd} found in help")
                 else:
-                    print(f"  ❌ {cmd} not found in help")
+                    print(f"  {cmd} not found in help")
         else:
-            print(f"❌ Help command failed: {result.stderr}")
+            print(f"Help command failed: {result.stderr}")
             
     except Exception as e:
-        print(f"❌ Error testing help: {e}")
+        print(f"Error testing help: {e}")
 
 if __name__ == "__main__":
     print("AutoDraw AI Agent - Complex Drawing Test")
@@ -196,8 +196,8 @@ if __name__ == "__main__":
     success = test_complex_drawings()
     
     if success:
-        print("\n🎉 All tests passed! Complex drawing capabilities are working.")
+        print("\nAll tests passed! Complex drawing capabilities are working.")
         sys.exit(0)
     else:
-        print("\n⚠️  Some tests failed. Please check the output above.")
+        print("\nSome tests failed. Please check the output above.")
         sys.exit(1) 
