@@ -39,6 +39,24 @@ Examples:
   # Create a rush light with specifications
   python cli_autodraw.py --system rush_light --length 8 --width 6 --wattage 75 --mounting ceiling --lens frosted
   
+  # Create a rectangle
+  python cli_autodraw.py --command rectangle --start 0,0 --end 10,8
+  
+  # Create a circle
+  python cli_autodraw.py --command circle --center 5,5 --radius 3
+  
+  # Create a polyline
+  python cli_autodraw.py --command polyline --points "0,0;5,5;10,0;15,5" --closed
+  
+  # Create an arc
+  python cli_autodraw.py --command arc --center 5,5 --radius 4 --start-angle 0 --end-angle 90
+  
+  # Add text
+  python cli_autodraw.py --command text --insertion-point 2,2 --text-content "Sample Text" --text-height 0.25
+  
+  # Create a rectangular array
+  python cli_autodraw.py --command array --array-type rectangular --rows 3 --columns 4 --row-spacing 2 --column-spacing 2
+  
   # Create from natural language description
   python cli_autodraw.py --natural "Draw a 10-foot linear light from point 5,5 to 15,5 with 50W power and 4000K color temperature"
   
@@ -70,7 +88,7 @@ Examples:
         system_group.add_argument(
             '--command', '-c',
             choices=list(config.COMMAND_MAP.keys()),
-            help='Specific AutoCAD command to execute'
+            help='Specific AutoCAD command to execute (rectangle, circle, polyline, arc, ellipse, text, dimension, hatch, block, array, mirror, rotate, scale, offset, trim, extend, fillet, chamfer)'
         )
         
         # Dimensions group
@@ -102,6 +120,21 @@ Examples:
             '--end',
             type=str,
             help='End point as "x,y" coordinates'
+        )
+        pos_group.add_argument(
+            '--center',
+            type=str,
+            help='Center point as "x,y" coordinates (for circles, arcs, ellipses)'
+        )
+        pos_group.add_argument(
+            '--insertion-point',
+            type=str,
+            help='Insertion point as "x,y" coordinates (for text, blocks)'
+        )
+        pos_group.add_argument(
+            '--points',
+            type=str,
+            help='Multiple points as "x1,y1;x2,y2;x3,y3" (for polylines)'
         )
         pos_group.add_argument(
             '--orientation',
@@ -171,6 +204,117 @@ Examples:
             type=str,
             help='Ingress protection rating'
         )
+        # New parameters for complex drawings
+        add_group.add_argument(
+            '--radius',
+            type=float,
+            help='Radius for circles and arcs'
+        )
+        add_group.add_argument(
+            '--major-axis',
+            type=float,
+            help='Major axis length for ellipses'
+        )
+        add_group.add_argument(
+            '--minor-axis',
+            type=float,
+            help='Minor axis length for ellipses'
+        )
+        add_group.add_argument(
+            '--start-angle',
+            type=float,
+            help='Start angle in degrees for arcs'
+        )
+        add_group.add_argument(
+            '--end-angle',
+            type=float,
+            help='End angle in degrees for arcs'
+        )
+        add_group.add_argument(
+            '--closed',
+            action='store_true',
+            help='Close polyline (for polylines)'
+        )
+        add_group.add_argument(
+            '--text-content',
+            type=str,
+            help='Text content to display'
+        )
+        add_group.add_argument(
+            '--text-height',
+            type=float,
+            help='Text height'
+        )
+        add_group.add_argument(
+            '--block-name',
+            type=str,
+            help='Name of block to insert'
+        )
+        add_group.add_argument(
+            '--pattern-name',
+            type=str,
+            help='Hatch pattern name'
+        )
+        add_group.add_argument(
+            '--array-type',
+            choices=['rectangular', 'polar'],
+            help='Type of array to create'
+        )
+        add_group.add_argument(
+            '--rows',
+            type=int,
+            help='Number of rows for rectangular array'
+        )
+        add_group.add_argument(
+            '--columns',
+            type=int,
+            help='Number of columns for rectangular array'
+        )
+        add_group.add_argument(
+            '--row-spacing',
+            type=float,
+            help='Spacing between rows'
+        )
+        add_group.add_argument(
+            '--column-spacing',
+            type=float,
+            help='Spacing between columns'
+        )
+        add_group.add_argument(
+            '--num-items',
+            type=int,
+            help='Number of items for polar array'
+        )
+        add_group.add_argument(
+            '--scale-factor',
+            type=float,
+            help='Scale factor for scaling operations'
+        )
+        add_group.add_argument(
+            '--rotation',
+            type=float,
+            help='Rotation angle in degrees'
+        )
+        add_group.add_argument(
+            '--offset-distance',
+            type=float,
+            help='Offset distance'
+        )
+        add_group.add_argument(
+            '--fillet-radius',
+            type=float,
+            help='Fillet radius'
+        )
+        add_group.add_argument(
+            '--chamfer-distance1',
+            type=float,
+            help='First chamfer distance'
+        )
+        add_group.add_argument(
+            '--chamfer-distance2',
+            type=float,
+            help='Second chamfer distance'
+        )
         
         # Output options
         parser.add_argument(
@@ -208,7 +352,7 @@ Examples:
             specs['lighting_system'] = args.system
         
         # Dimensions
-        if any([args.length, args.width, args.height]):
+        if any([args.length, args.width, args.height, args.radius, args.major_axis, args.minor_axis]):
             specs['dimensions'] = {}
             if args.length:
                 specs['dimensions']['length'] = args.length
@@ -216,9 +360,15 @@ Examples:
                 specs['dimensions']['width'] = args.width
             if args.height:
                 specs['dimensions']['height'] = args.height
+            if args.radius:
+                specs['dimensions']['radius'] = args.radius
+            if args.major_axis:
+                specs['dimensions']['major_axis'] = args.major_axis
+            if args.minor_axis:
+                specs['dimensions']['minor_axis'] = args.minor_axis
         
         # Position
-        if any([args.start, args.end, args.orientation]):
+        if any([args.start, args.end, args.center, args.insertion_point, args.points, args.orientation]):
             specs['position'] = {}
             if args.start:
                 try:
@@ -234,10 +384,35 @@ Examples:
                 except ValueError:
                     logger.error("Invalid end point format. Use 'x,y'")
                     return None
+            if args.center:
+                try:
+                    x, y = map(float, args.center.split(','))
+                    specs['position']['center_point'] = [x, y, 0]
+                except ValueError:
+                    logger.error("Invalid center point format. Use 'x,y'")
+                    return None
+            if args.insertion_point:
+                try:
+                    x, y = map(float, args.insertion_point.split(','))
+                    specs['position']['insertion_point'] = [x, y, 0]
+                except ValueError:
+                    logger.error("Invalid insertion point format. Use 'x,y'")
+                    return None
+            if args.points:
+                try:
+                    points = []
+                    for point_str in args.points.split(';'):
+                        x, y = map(float, point_str.split(','))
+                        points.append([x, y, 0])
+                    specs['position']['points'] = points
+                except ValueError:
+                    logger.error("Invalid points format. Use 'x1,y1;x2,y2;x3,y3'")
+                    return None
             specs['position']['orientation'] = args.orientation
         
         # Specifications
-        if any([args.wattage, args.color_temp, args.lens, args.mounting, args.driver, args.quantity]):
+        if any([args.wattage, args.color_temp, args.lens, args.mounting, args.driver, args.quantity, 
+                args.text_content, args.text_height, args.block_name, args.pattern_name]):
             specs['specifications'] = {}
             if args.wattage:
                 specs['specifications']['wattage'] = args.wattage
@@ -249,10 +424,21 @@ Examples:
                 specs['specifications']['mounting_type'] = args.mounting
             if args.driver:
                 specs['specifications']['driver_type'] = args.driver
+            if args.text_content:
+                specs['specifications']['text_content'] = args.text_content
+            if args.text_height:
+                specs['specifications']['text_height'] = args.text_height
+            if args.block_name:
+                specs['specifications']['block_name'] = args.block_name
+            if args.pattern_name:
+                specs['specifications']['pattern_name'] = args.pattern_name
             specs['specifications']['quantity'] = args.quantity
         
         # Additional parameters
-        if any([args.spacing, args.voltage, args.emergency_backup, args.dimmable, args.ip_rating]):
+        if any([args.spacing, args.voltage, args.emergency_backup, args.dimmable, args.ip_rating,
+                args.start_angle, args.end_angle, args.closed, args.array_type, args.rows, args.columns,
+                args.row_spacing, args.column_spacing, args.num_items, args.scale_factor, args.rotation,
+                args.offset_distance, args.fillet_radius, args.chamfer_distance1, args.chamfer_distance2]):
             specs['additional_parameters'] = {}
             if args.spacing:
                 specs['additional_parameters']['spacing'] = args.spacing
@@ -264,6 +450,36 @@ Examples:
                 specs['additional_parameters']['dimmable'] = 'true'
             if args.ip_rating:
                 specs['additional_parameters']['ip_rating'] = args.ip_rating
+            if args.start_angle:
+                specs['additional_parameters']['start_angle'] = args.start_angle
+            if args.end_angle:
+                specs['additional_parameters']['end_angle'] = args.end_angle
+            if args.closed:
+                specs['additional_parameters']['closed'] = 'true'
+            if args.array_type:
+                specs['additional_parameters']['array_type'] = args.array_type
+            if args.rows:
+                specs['additional_parameters']['rows'] = args.rows
+            if args.columns:
+                specs['additional_parameters']['columns'] = args.columns
+            if args.row_spacing:
+                specs['additional_parameters']['row_spacing'] = args.row_spacing
+            if args.column_spacing:
+                specs['additional_parameters']['column_spacing'] = args.column_spacing
+            if args.num_items:
+                specs['additional_parameters']['num_items'] = args.num_items
+            if args.scale_factor:
+                specs['additional_parameters']['scale_factor'] = args.scale_factor
+            if args.rotation:
+                specs['additional_parameters']['rotation'] = args.rotation
+            if args.offset_distance:
+                specs['additional_parameters']['offset_distance'] = args.offset_distance
+            if args.fillet_radius:
+                specs['additional_parameters']['fillet_radius'] = args.fillet_radius
+            if args.chamfer_distance1:
+                specs['additional_parameters']['chamfer_distance1'] = args.chamfer_distance1
+            if args.chamfer_distance2:
+                specs['additional_parameters']['chamfer_distance2'] = args.chamfer_distance2
         
         return specs
     
@@ -305,6 +521,12 @@ Examples:
                 print(f"  Width: {dims['width']} inches")
             if 'height' in dims:
                 print(f"  Height: {dims['height']} inches")
+            if 'radius' in dims:
+                print(f"  Radius: {dims['radius']} units")
+            if 'major_axis' in dims:
+                print(f"  Major Axis: {dims['major_axis']} units")
+            if 'minor_axis' in dims:
+                print(f"  Minor Axis: {dims['minor_axis']} units")
         
         if 'position' in specs:
             print("\nPosition:")
@@ -313,6 +535,12 @@ Examples:
                 print(f"  Start: {pos['start_point']}")
             if 'end_point' in pos:
                 print(f"  End: {pos['end_point']}")
+            if 'center_point' in pos:
+                print(f"  Center: {pos['center_point']}")
+            if 'insertion_point' in pos:
+                print(f"  Insertion Point: {pos['insertion_point']}")
+            if 'points' in pos:
+                print(f"  Points: {pos['points']}")
             if 'orientation' in pos:
                 print(f"  Orientation: {pos['orientation']}")
         
@@ -327,6 +555,14 @@ Examples:
                 print(f"  Lens: {specs_data['lens_type']}")
             if 'mounting_type' in specs_data:
                 print(f"  Mounting: {specs_data['mounting_type']}")
+            if 'text_content' in specs_data:
+                print(f"  Text Content: {specs_data['text_content']}")
+            if 'text_height' in specs_data:
+                print(f"  Text Height: {specs_data['text_height']}")
+            if 'block_name' in specs_data:
+                print(f"  Block Name: {specs_data['block_name']}")
+            if 'pattern_name' in specs_data:
+                print(f"  Pattern Name: {specs_data['pattern_name']}")
             if 'quantity' in specs_data:
                 print(f"  Quantity: {specs_data['quantity']}")
         

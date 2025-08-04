@@ -7,7 +7,7 @@ from typing import Dict, List
 
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-OPENAI_MODEL = "gpt-4"
+OPENAI_MODEL = "gpt-4.1-mini"
 OPENAI_TEMPERATURE = 0.1
 OPENAI_MAX_TOKENS = 1000
 

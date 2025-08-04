@@ -61,7 +61,26 @@ class AutoDrawAIAgent:
             "ww_toggle": "_TEXT",
             "import_assets": "_INSERT",
             "redefine_blocks": "_INSERT",
-            "purge_all": "_PURGE"
+            "purge_all": "_PURGE",
+            # New drawing commands for complex shapes
+            "rectangle": "_RECTANGLE",
+            "circle": "_CIRCLE",
+            "polyline": "_PLINE",
+            "arc": "_ARC",
+            "ellipse": "_ELLIPSE",
+            "text": "_TEXT",
+            "dimension": "_DIMENSION",
+            "hatch": "_HATCH",
+            "block": "_INSERT",
+            "array": "_ARRAY",
+            "mirror": "_MIRROR",
+            "rotate": "_ROTATE",
+            "scale": "_SCALE",
+            "offset": "_OFFSET",
+            "trim": "_TRIM",
+            "extend": "_EXTEND",
+            "fillet": "_FILLET",
+            "chamfer": "_CHAMFER"
         }
         
         # Lighting system specifications
@@ -274,7 +293,7 @@ class AutoDrawAIAgent:
     def _create_parsing_prompt(self, user_input: str) -> str:
         """Create a detailed prompt for parsing user input."""
         return f"""
-        Parse this AutoCAD lighting design request into JSON format:
+        Parse this AutoCAD drawing request into JSON format:
         
         User Request: "{user_input}"
         
@@ -291,11 +310,21 @@ class AutoDrawAIAgent:
             "dimensions": {{
                 "length": "value_in_feet_or_meters",
                 "width": "value_in_inches_or_mm",
-                "height": "value_in_inches_or_mm"
+                "height": "value_in_inches_or_mm",
+                "radius": "value_for_circles_arcs",
+                "major_axis": "value_for_ellipses",
+                "minor_axis": "value_for_ellipses"
             }},
             "position": {{
                 "start_point": [x, y, z],
                 "end_point": [x, y, z],
+                "center_point": [x, y, z],
+                "insertion_point": [x, y, z],
+                "text_position": [x, y, z],
+                "mirror_line_start": [x, y, z],
+                "mirror_line_end": [x, y, z],
+                "base_point": [x, y, z],
+                "points": [[x1, y1, z1], [x2, y2, z2], ...],
                 "orientation": "horizontal/vertical/angled"
             }},
             "specifications": {{
@@ -304,19 +333,52 @@ class AutoDrawAIAgent:
                 "lens_type": "lens_option",
                 "mounting_type": "mounting_option",
                 "driver_type": "driver_specification",
-                "quantity": "number_of_units"
+                "quantity": "number_of_units",
+                "text_content": "text_to_display",
+                "text_height": "text_height_value",
+                "block_name": "name_of_block_to_insert",
+                "pattern_name": "hatch_pattern_name"
             }},
             "additional_parameters": {{
                 "spacing": "distance_between_units",
                 "voltage": "voltage_requirement",
                 "emergency_backup": "true/false",
                 "dimmable": "true/false",
-                "ip_rating": "ingress_protection_rating"
+                "ip_rating": "ingress_protection_rating",
+                "closed": "true/false_for_polylines",
+                "start_angle": "angle_in_degrees",
+                "end_angle": "angle_in_degrees",
+                "scale": "scale_factor",
+                "rotation": "rotation_angle",
+                "array_type": "rectangular/polar",
+                "rows": "number_of_rows",
+                "columns": "number_of_columns",
+                "row_spacing": "distance_between_rows",
+                "column_spacing": "distance_between_columns",
+                "num_items": "number_of_items_for_polar_array",
+                "angle": "total_angle_for_polar_array",
+                "scale_factor": "scale_factor_for_scale_command",
+                "offset_distance": "distance_for_offset",
+                "fillet_radius": "radius_for_fillet",
+                "chamfer_distance1": "first_chamfer_distance",
+                "chamfer_distance2": "second_chamfer_distance"
             }}
         }}
         
         Extract all relevant information from the user request. If a value is not specified, use null.
         Use standard units (feet for length, inches for width/height, watts for power, etc.).
+        
+        Examples of commands:
+        - "rectangle": Use start_point and end_point
+        - "circle": Use center_point and radius
+        - "polyline": Use points array and closed parameter
+        - "arc": Use center_point, radius, start_angle, end_angle
+        - "ellipse": Use center_point, major_axis, minor_axis
+        - "text": Use insertion_point and text_content
+        - "array": Use array_type, rows, columns, row_spacing, column_spacing
+        - "mirror": Use mirror_line_start and mirror_line_end
+        - "rotate": Use base_point and angle
+        - "scale": Use base_point and scale_factor
         """
     
 
@@ -379,6 +441,388 @@ class AutoDrawAIAgent:
             logger.error(f"Failed to draw linear light: {str(e)}")
             raise
 
+    def _draw_rectangle(self, specs, modelspace):
+        """Draw a rectangle in AutoCAD."""
+        try:
+            start = specs["position"]["start_point"]
+            end = specs["position"]["end_point"]
+            
+            start_point = self._convert_to_3d_point(start)
+            end_point = self._convert_to_3d_point(end)
+            
+            logger.info(f"Drawing rectangle from {start_point} to {end_point}")
+            
+            # Create rectangle using AddRectangle method
+            modelspace.AddRectangle(start_point, end_point)
+            
+            logger.info("Successfully drew rectangle.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to draw rectangle: {str(e)}")
+            return False
+
+    def _draw_circle(self, specs, modelspace):
+        """Draw a circle in AutoCAD."""
+        try:
+            center = specs["position"]["center_point"]
+            radius = specs["dimensions"].get("radius", 1.0)
+            
+            center_point = self._convert_to_3d_point(center)
+            
+            logger.info(f"Drawing circle at {center_point} with radius {radius}")
+            
+            # Create circle using AddCircle method
+            modelspace.AddCircle(center_point, radius)
+            
+            logger.info("Successfully drew circle.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to draw circle: {str(e)}")
+            return False
+
+    def _draw_polyline(self, specs, modelspace):
+        """Draw a polyline in AutoCAD."""
+        try:
+            points = specs["position"]["points"]
+            closed = specs.get("closed", False)
+            
+            # Convert all points to 3D format
+            converted_points = []
+            for point in points:
+                converted_points.append(self._convert_to_3d_point(point))
+            
+            logger.info(f"Drawing polyline with {len(converted_points)} points")
+            
+            # Create polyline using AddPolyline method
+            polyline = modelspace.AddPolyline(converted_points)
+            
+            # Close the polyline if specified
+            if closed:
+                polyline.Closed = True
+            
+            logger.info("Successfully drew polyline.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to draw polyline: {str(e)}")
+            return False
+
+    def _draw_arc(self, specs, modelspace):
+        """Draw an arc in AutoCAD."""
+        try:
+            center = specs["position"]["center_point"]
+            radius = specs["dimensions"].get("radius", 1.0)
+            start_angle = specs.get("start_angle", 0.0)
+            end_angle = specs.get("end_angle", 90.0)
+            
+            center_point = self._convert_to_3d_point(center)
+            
+            logger.info(f"Drawing arc at {center_point} with radius {radius}")
+            
+            # Create arc using AddArc method
+            modelspace.AddArc(center_point, radius, start_angle, end_angle)
+            
+            logger.info("Successfully drew arc.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to draw arc: {str(e)}")
+            return False
+
+    def _draw_ellipse(self, specs, modelspace):
+        """Draw an ellipse in AutoCAD."""
+        try:
+            center = specs["position"]["center_point"]
+            major_axis = specs["dimensions"].get("major_axis", 2.0)
+            minor_axis = specs["dimensions"].get("minor_axis", 1.0)
+            
+            center_point = self._convert_to_3d_point(center)
+            
+            logger.info(f"Drawing ellipse at {center_point}")
+            
+            # Create ellipse using AddEllipse method
+            modelspace.AddEllipse(center_point, major_axis, minor_axis)
+            
+            logger.info("Successfully drew ellipse.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to draw ellipse: {str(e)}")
+            return False
+
+    def _add_text(self, specs, modelspace):
+        """Add text to AutoCAD drawing."""
+        try:
+            position = specs["position"]["insertion_point"]
+            text_content = specs.get("text_content", "Sample Text")
+            height = specs.get("text_height", 0.125)
+            
+            insertion_point = self._convert_to_3d_point(position)
+            
+            logger.info(f"Adding text '{text_content}' at {insertion_point}")
+            
+            # Create text using AddText method
+            modelspace.AddText(text_content, insertion_point, height)
+            
+            logger.info("Successfully added text.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add text: {str(e)}")
+            return False
+
+    def _add_dimension(self, specs, modelspace):
+        """Add dimension to AutoCAD drawing."""
+        try:
+            start_point = specs["position"]["start_point"]
+            end_point = specs["position"]["end_point"]
+            text_position = specs["position"]["text_position"]
+            
+            start_pt = self._convert_to_3d_point(start_point)
+            end_pt = self._convert_to_3d_point(end_point)
+            text_pt = self._convert_to_3d_point(text_position)
+            
+            logger.info(f"Adding dimension from {start_pt} to {end_pt}")
+            
+            # Create dimension using AddDimAligned method
+            modelspace.AddDimAligned(start_pt, end_pt, text_pt)
+            
+            logger.info("Successfully added dimension.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add dimension: {str(e)}")
+            return False
+
+    def _add_hatch(self, specs, modelspace):
+        """Add hatch pattern to AutoCAD drawing."""
+        try:
+            pattern_name = specs.get("pattern_name", "SOLID")
+            scale = specs.get("scale", 1.0)
+            angle = specs.get("angle", 0.0)
+            
+            # Get the last created object to hatch
+            last_object = modelspace.Item(modelspace.Count - 1)
+            
+            logger.info(f"Adding hatch pattern '{pattern_name}'")
+            
+            # Create hatch using AddHatch method
+            hatch = modelspace.AddHatch(0, pattern_name, True)
+            hatch.AppendOuterLoop([last_object])
+            hatch.Evaluate()
+            
+            logger.info("Successfully added hatch.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add hatch: {str(e)}")
+            return False
+
+    def _insert_block(self, specs, modelspace):
+        """Insert a block in AutoCAD drawing."""
+        try:
+            insertion_point = specs["position"]["insertion_point"]
+            block_name = specs.get("block_name", "test_block")
+            scale = specs.get("scale", 1.0)
+            rotation = specs.get("rotation", 0.0)
+            
+            insert_pt = self._convert_to_3d_point(insertion_point)
+            
+            logger.info(f"Inserting block '{block_name}' at {insert_pt}")
+            
+            # Create block reference using AddBlockReference method
+            modelspace.AddBlockReference(insert_pt, block_name, scale, scale, scale, rotation)
+            
+            logger.info("Successfully inserted block.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert block: {str(e)}")
+            return False
+
+    def _create_array(self, specs, modelspace):
+        """Create an array of objects in AutoCAD."""
+        try:
+            array_type = specs.get("array_type", "rectangular")  # rectangular or polar
+            rows = specs.get("rows", 2)
+            columns = specs.get("columns", 2)
+            row_spacing = specs.get("row_spacing", 2.0)
+            column_spacing = specs.get("column_spacing", 2.0)
+            
+            # Get the last created object to array
+            last_object = modelspace.Item(modelspace.Count - 1)
+            
+            logger.info(f"Creating {array_type} array with {rows}x{columns} objects")
+            
+            if array_type == "rectangular":
+                # Create rectangular array
+                modelspace.AddRectangularArray(last_object, rows, columns, row_spacing, column_spacing)
+            else:
+                # Create polar array
+                center_point = specs["position"]["center_point"]
+                center_pt = self._convert_to_3d_point(center_point)
+                num_items = specs.get("num_items", 8)
+                angle = specs.get("angle", 360.0)
+                
+                modelspace.AddPolarArray(last_object, center_pt, num_items, angle)
+            
+            logger.info("Successfully created array.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to create array: {str(e)}")
+            return False
+
+    def _mirror_objects(self, specs, modelspace):
+        """Mirror objects in AutoCAD."""
+        try:
+            mirror_line_start = specs["position"]["mirror_line_start"]
+            mirror_line_end = specs["position"]["mirror_line_end"]
+            
+            start_pt = self._convert_to_3d_point(mirror_line_start)
+            end_pt = self._convert_to_3d_point(mirror_line_end)
+            
+            logger.info(f"Mirroring objects along line from {start_pt} to {end_pt}")
+            
+            # Get all objects in modelspace
+            objects = []
+            for i in range(modelspace.Count):
+                objects.append(modelspace.Item(i))
+            
+            # Mirror each object
+            for obj in objects:
+                modelspace.AddMirror(obj, start_pt, end_pt)
+            
+            logger.info("Successfully mirrored objects.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to mirror objects: {str(e)}")
+            return False
+
+    def _rotate_objects(self, specs, modelspace):
+        """Rotate objects in AutoCAD."""
+        try:
+            base_point = specs["position"]["base_point"]
+            angle = specs.get("angle", 90.0)
+            
+            base_pt = self._convert_to_3d_point(base_point)
+            
+            logger.info(f"Rotating objects around {base_pt} by {angle} degrees")
+            
+            # Get all objects in modelspace
+            objects = []
+            for i in range(modelspace.Count):
+                objects.append(modelspace.Item(i))
+            
+            # Rotate each object
+            for obj in objects:
+                modelspace.AddRotate(obj, base_pt, angle)
+            
+            logger.info("Successfully rotated objects.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to rotate objects: {str(e)}")
+            return False
+
+    def _scale_objects(self, specs, modelspace):
+        """Scale objects in AutoCAD."""
+        try:
+            base_point = specs["position"]["base_point"]
+            scale_factor = specs.get("scale_factor", 2.0)
+            
+            base_pt = self._convert_to_3d_point(base_point)
+            
+            logger.info(f"Scaling objects from {base_pt} by factor {scale_factor}")
+            
+            # Get all objects in modelspace
+            objects = []
+            for i in range(modelspace.Count):
+                objects.append(modelspace.Item(i))
+            
+            # Scale each object
+            for obj in objects:
+                modelspace.AddScale(obj, base_pt, scale_factor)
+            
+            logger.info("Successfully scaled objects.")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to scale objects: {str(e)}")
+            return False
+
+    def _modify_objects(self, specs, modelspace, command):
+        """Modify existing objects in AutoCAD."""
+        try:
+            if command == "offset":
+                distance = specs.get("offset_distance", 1.0)
+                # Get the last created object to offset
+                last_object = modelspace.Item(modelspace.Count - 1)
+                modelspace.AddOffset(last_object, distance)
+                logger.info(f"Successfully offset object by {distance}")
+                
+            elif command == "trim":
+                # Trim objects using cutting edges
+                cutting_edges = specs.get("cutting_edges", [])
+                if cutting_edges:
+                    # Get objects to trim (last created object)
+                    last_object = modelspace.Item(modelspace.Count - 1)
+                    modelspace.AddTrim(last_object, cutting_edges)
+                    logger.info("Successfully trimmed object")
+                    
+            elif command == "extend":
+                # Extend objects to boundary
+                boundary = specs.get("boundary", [])
+                if boundary:
+                    # Get objects to extend (last created object)
+                    last_object = modelspace.Item(modelspace.Count - 1)
+                    modelspace.AddExtend(last_object, boundary)
+                    logger.info("Successfully extended object")
+                    
+            elif command == "fillet":
+                radius = specs.get("fillet_radius", 0.5)
+                # Get the last two created objects to fillet
+                if modelspace.Count >= 2:
+                    obj1 = modelspace.Item(modelspace.Count - 2)
+                    obj2 = modelspace.Item(modelspace.Count - 1)
+                    modelspace.AddFillet(obj1, obj2, radius)
+                    logger.info(f"Successfully created fillet with radius {radius}")
+                    
+            elif command == "chamfer":
+                distance1 = specs.get("chamfer_distance1", 0.5)
+                distance2 = specs.get("chamfer_distance2", 0.5)
+                # Get the last two created objects to chamfer
+                if modelspace.Count >= 2:
+                    obj1 = modelspace.Item(modelspace.Count - 2)
+                    obj2 = modelspace.Item(modelspace.Count - 1)
+                    modelspace.AddChamfer(obj1, obj2, distance1, distance2)
+                    logger.info(f"Successfully created chamfer with distances {distance1}, {distance2}")
+            
+            return True
+        except Exception as e:
+            logger.error(f"Failed to modify objects with {command}: {str(e)}")
+            return False
+
+    def _repeat_last_command(self, specs, modelspace):
+        """Repeat the last command executed."""
+        try:
+            # This would typically repeat the last command with new parameters
+            # For now, we'll just log that it was called
+            logger.info("Repeat last command called")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to repeat last command: {str(e)}")
+            return False
+
+    def _add_text_annotation(self, specs, modelspace):
+        """Add text annotation to the drawing."""
+        try:
+            # Use the existing _add_text method
+            return self._add_text(specs, modelspace)
+        except Exception as e:
+            logger.error(f"Failed to add text annotation: {str(e)}")
+            return False
+
+    def _purge_drawing(self, doc):
+        """Purge unused objects from the drawing."""
+        try:
+            # Execute purge command
+            doc.SendCommand("_PURGE ")
+            logger.info("Successfully purged drawing")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to purge drawing: {str(e)}")
+            return False
 
     def execute_drawing_command(self, specifications: Dict) -> bool:
         """
@@ -410,6 +854,36 @@ class AutoDrawAIAgent:
                 return self._insert_block(specifications, modelspace)
             elif command == "purge_all":
                 return self._purge_drawing(doc)
+            # New complex drawing commands
+            elif command == "rectangle":
+                return self._draw_rectangle(specifications, modelspace)
+            elif command == "circle":
+                return self._draw_circle(specifications, modelspace)
+            elif command == "polyline":
+                return self._draw_polyline(specifications, modelspace)
+            elif command == "arc":
+                return self._draw_arc(specifications, modelspace)
+            elif command == "ellipse":
+                return self._draw_ellipse(specifications, modelspace)
+            elif command == "text":
+                return self._add_text(specifications, modelspace)
+            elif command == "dimension":
+                return self._add_dimension(specifications, modelspace)
+            elif command == "hatch":
+                return self._add_hatch(specifications, modelspace)
+            elif command == "block":
+                return self._insert_block(specifications, modelspace)
+            elif command == "array":
+                return self._create_array(specifications, modelspace)
+            elif command == "mirror":
+                return self._mirror_objects(specifications, modelspace)
+            elif command == "rotate":
+                return self._rotate_objects(specifications, modelspace)
+            elif command == "scale":
+                return self._scale_objects(specifications, modelspace)
+            elif command in ["offset", "trim", "extend", "fillet", "chamfer"]:
+                # These are modification commands that work on existing objects
+                return self._modify_objects(specifications, modelspace, command)
             else:
                 logger.error(f"Unknown command type: {command}")
                 return False
