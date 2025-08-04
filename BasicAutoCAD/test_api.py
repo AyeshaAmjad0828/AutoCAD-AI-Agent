@@ -137,6 +137,11 @@ def test_validate_specifications():
                 return False
         else:
             print(f"❌ Specifications validation request failed: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"   Error details: {error_data}")
+            except:
+                print(f"   Response text: {response.text}")
             return False
     except Exception as e:
         print(f"❌ Specifications validation error: {e}")
@@ -265,6 +270,11 @@ def test_drawing_creation():
                 return False
         else:
             print(f"❌ Drawing creation request failed: {response.status_code}")
+            try:
+                error_data = response.json()
+                print(f"   Error details: {error_data}")
+            except:
+                print(f"   Response text: {response.text}")
             return False
     except Exception as e:
         print(f"❌ Drawing creation error: {e}")
