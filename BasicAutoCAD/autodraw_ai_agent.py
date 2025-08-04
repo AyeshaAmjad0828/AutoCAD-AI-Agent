@@ -118,20 +118,56 @@ class AutoDrawAIAgent:
             # Initialize COM for this thread
             pythoncom.CoInitialize()
             
-            print("I am here P1")
+            logger.info("Attempting to connect to AutoCAD...")
             
-            # Try to get existing AutoCAD instance first
+            # Try multiple approaches to connect to AutoCAD
+            autocad_app = None
+            
+            # Method 1: Try to get existing AutoCAD instance
             try:
-                self._thread_local.autocad = win32com.client.GetActiveObject("AutoCAD.Application")
-                logger.info("Connected to existing AutoCAD instance")
-            except:
-                # If no existing instance, create a new one
-                self._thread_local.autocad = win32com.client.Dispatch("AutoCAD.Application")
-                logger.info("Created new AutoCAD instance")
+                logger.info("Trying to connect to existing AutoCAD instance...")
+                autocad_app = win32com.client.GetActiveObject("AutoCAD.Application")
+                logger.info("Successfully connected to existing AutoCAD instance")
+            except Exception as e:
+                logger.info(f"Could not connect to existing AutoCAD instance: {e}")
+                
+                # Method 2: Try to create a new AutoCAD instance
+                try:
+                    logger.info("Attempting to create new AutoCAD instance...")
+                    autocad_app = win32com.client.Dispatch("AutoCAD.Application")
+                    logger.info("Successfully created new AutoCAD instance")
+                except Exception as e2:
+                    logger.error(f"Could not create new AutoCAD instance: {e2}")
+                    
+                    # Method 3: Try with ProgID variations
+                    progids = [
+                        "AutoCAD.Application",
+                        "AutoCAD.Application.24",  # AutoCAD 2021
+                        "AutoCAD.Application.23",  # AutoCAD 2020
+                        "AutoCAD.Application.22",  # AutoCAD 2019
+                        "AutoCAD.Application.21",  # AutoCAD 2018
+                        "AutoCAD.Application.20",  # AutoCAD 2017
+                    ]
+                    
+                    for progid in progids:
+                        try:
+                            logger.info(f"Trying ProgID: {progid}")
+                            autocad_app = win32com.client.Dispatch(progid)
+                            logger.info(f"Successfully connected using ProgID: {progid}")
+                            break
+                        except Exception as e3:
+                            logger.info(f"Failed with ProgID {progid}: {e3}")
+                            continue
+                    
+                    if autocad_app is None:
+                        raise Exception("Could not connect to AutoCAD using any method. Please ensure AutoCAD is installed and running.")
+            
+            # Store the AutoCAD application
+            self._thread_local.autocad = autocad_app
             
             # Wait a moment for AutoCAD to fully initialize
             import time
-            time.sleep(1.0)
+            time.sleep(2.0)
             
             # Check if AutoCAD is properly connected
             try:
