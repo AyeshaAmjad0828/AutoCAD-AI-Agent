@@ -452,8 +452,27 @@ class AutoDrawAIAgent:
             
             logger.info(f"Drawing rectangle from {start_point} to {end_point}")
             
-            # Create rectangle using AddRectangle method
-            modelspace.AddRectangle(start_point, end_point)
+            # Create rectangle using polyline with 4 points
+            x1, y1, z1 = start_point
+            x2, y2, z2 = end_point
+            
+            # Define the 4 corners of the rectangle
+            points = [
+                (x1, y1, z1),  # Bottom-left
+                (x2, y1, z1),  # Bottom-right
+                (x2, y2, z1),  # Top-right
+                (x1, y2, z1),  # Top-left
+                (x1, y1, z1)   # Back to start to close
+            ]
+            
+            # Convert points to variant array
+            point_array = []
+            for point in points:
+                point_array.extend(point)
+            
+            # Create closed polyline for rectangle
+            polyline = modelspace.AddPolyline(win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, point_array))
+            polyline.Closed = True
             
             logger.info("Successfully drew rectangle.")
             return True
@@ -472,7 +491,9 @@ class AutoDrawAIAgent:
             logger.info(f"Drawing circle at {center_point} with radius {radius}")
             
             # Create circle using AddCircle method
-            modelspace.AddCircle(center_point, radius)
+            # Convert center point to variant array
+            center_array = list(center_point)
+            circle = modelspace.AddCircle(win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, center_array), radius)
             
             logger.info("Successfully drew circle.")
             return True
@@ -486,15 +507,16 @@ class AutoDrawAIAgent:
             points = specs["position"]["points"]
             closed = specs.get("closed", False)
             
-            # Convert all points to 3D format
-            converted_points = []
+            # Convert all points to 3D format and flatten to array
+            point_array = []
             for point in points:
-                converted_points.append(self._convert_to_3d_point(point))
+                converted_point = self._convert_to_3d_point(point)
+                point_array.extend(converted_point)
             
-            logger.info(f"Drawing polyline with {len(converted_points)} points")
+            logger.info(f"Drawing polyline with {len(points)} points")
             
             # Create polyline using AddPolyline method
-            polyline = modelspace.AddPolyline(converted_points)
+            polyline = modelspace.AddPolyline(win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, point_array))
             
             # Close the polyline if specified
             if closed:
@@ -519,7 +541,9 @@ class AutoDrawAIAgent:
             logger.info(f"Drawing arc at {center_point} with radius {radius}")
             
             # Create arc using AddArc method
-            modelspace.AddArc(center_point, radius, start_angle, end_angle)
+            # Convert center point to variant array
+            center_array = list(center_point)
+            arc = modelspace.AddArc(win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, center_array), radius, start_angle, end_angle)
             
             logger.info("Successfully drew arc.")
             return True
@@ -539,7 +563,15 @@ class AutoDrawAIAgent:
             logger.info(f"Drawing ellipse at {center_point}")
             
             # Create ellipse using AddEllipse method
-            modelspace.AddEllipse(center_point, major_axis, minor_axis)
+            # Convert center point to variant array
+            center_array = list(center_point)
+            # For ellipse, we need to specify the major axis endpoint
+            major_axis_end = (center_point[0] + major_axis, center_point[1], center_point[2])
+            major_axis_array = list(major_axis_end)
+            
+            ellipse = modelspace.AddEllipse(win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, center_array), 
+                                          win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, major_axis_array), 
+                                          minor_axis / major_axis)
             
             logger.info("Successfully drew ellipse.")
             return True
@@ -559,7 +591,9 @@ class AutoDrawAIAgent:
             logger.info(f"Adding text '{text_content}' at {insertion_point}")
             
             # Create text using AddText method
-            modelspace.AddText(text_content, insertion_point, height)
+            # Convert insertion point to variant array
+            insertion_array = list(insertion_point)
+            text = modelspace.AddText(text_content, win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, insertion_array), height)
             
             logger.info("Successfully added text.")
             return True
@@ -995,16 +1029,21 @@ class AutoDrawAIAgent:
     
     def _validate_specifications(self, specifications: Dict) -> bool:
         """Validate parsed specifications."""
-        required_fields = ['command', 'lighting_system']
-        
-        for field in required_fields:
-            if field not in specifications:
-                logger.error(f"Missing required field: {field}")
-                return False
+        # Command is always required
+        if 'command' not in specifications:
+            logger.error("Missing required field: command")
+            return False
         
         if specifications['command'] not in self.command_map:
             logger.error(f"Invalid command: {specifications['command']}")
             return False
+        
+        # Lighting system is only required for lighting-related commands
+        lighting_commands = ["linear_light", "linear_light_reflector", "rush_light", "rush_recessed", "pg_light", "magneto_track"]
+        if specifications['command'] in lighting_commands:
+            if 'lighting_system' not in specifications:
+                logger.error(f"Missing required field: lighting_system for command {specifications['command']}")
+                return False
         
         return True
     
