@@ -1,0 +1,2 @@
+cd C:\Users\hira.asif\OneDrive - Astera Software\Documents\GitHub\AutoCAD-AI-Agent\BasicAutoCAD\
+"C:\Users\hira.asif\AppData\Local\Programs\Python\Python311\python.exe" "cli_autodraw.py" --natural "%~1" 

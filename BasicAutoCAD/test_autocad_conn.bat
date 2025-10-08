@@ -1,0 +1,2 @@
+cd C:\Users\hira.asif\OneDrive - Astera Software\Documents\GitHub\AutoCAD-AI-Agent\BasicAutoCAD
+"C:\Users\hira.asif\OneDrive - Astera Software\Documents\GitHub\AutoCAD-AI-Agent\BasicAutoCAD\python.exe" "test_autocad_connection.py"

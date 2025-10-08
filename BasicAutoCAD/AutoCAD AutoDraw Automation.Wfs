@@ -1,0 +1,147 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WorkflowDocument2 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ProductVersion="11.1.0.396">
+  <IsFolder>false</IsFolder>
+  <Id>0</Id>
+  <IsNewRecord>false</IsNewRecord>
+  <Name>C:\Users\hira.asif\OneDrive - Astera Software\Documents\GitHub\AutoCAD-AI-Agent\BasicAutoCAD\AutoCAD AutoDraw Automation.Wfs</Name>
+  <Description />
+  <CreateDtTm>0001-01-01T00:00:00</CreateDtTm>
+  <UpdateDtTm>0001-01-01T00:00:00</UpdateDtTm>
+  <Views />
+  <AutoLayoutOnNextLoad>false</AutoLayoutOnNextLoad>
+  <ExplicitAnchors />
+  <Actions>
+    <FlowDocumentItemAction>
+      <ActionProperties>
+        <UniqueId>f926ae0b-dc90-4db8-8814-02bc8fee3127</UniqueId>
+        <DocumentItemData>
+          <SharingConnection>false</SharingConnection>
+          <ShareConnectionInstanceAmongDestinations>false</ShareConnectionInstanceAmongDestinations>
+        </DocumentItemData>
+        <ActionId>f926ae0b-dc90-4db8-8814-02bc8fee3127</ActionId>
+        <SharedItemPath>
+          <Path />
+          <UncPath />
+        </SharedItemPath>
+        <ActionTemplateName>Parameters</ActionTemplateName>
+        <NodeBounds>
+          <NormalBounds>
+            <Height>200</Height>
+            <Width>200</Width>
+            <X>155.44</X>
+            <Y>79.4</Y>
+            <IsExpanded>true</IsExpanded>
+            <ActualExpandedHeight>0</ActualExpandedHeight>
+            <IsSorted>false</IsSorted>
+          </NormalBounds>
+        </NodeBounds>
+        <IsSkip>false</IsSkip>
+        <IsHidden>false</IsHidden>
+        <SourceActionRole>Normal</SourceActionRole>
+        <DoNotPushdown>false</DoNotPushdown>
+        <Name>input_specs</Name>
+      </ActionProperties>
+      <DataflowItemDataParameter>
+        <Name>input_specs</Name>
+        <EntityName>input_specs</EntityName>
+        <IsShared>false</IsShared>
+        <ParameterXml>&lt;?xml version="1.0" encoding="utf-16"?&gt;&lt;DataObject Version="2" Name="input_specs" /&gt;</ParameterXml>
+        <AutoLog>false</AutoLog>
+        <Parameters>
+          <ParameterInfoBase xsi:type="ParameterInfoSingleValue">
+            <Name>specs</Name>
+            <CurrentValueStr>Draw a 10-foot linear light with 1000 inches width 500 height and vertical orientation from point 5,5 to 15,10 with 50W power and 4000K color temperature</CurrentValueStr>
+            <DataType>String</DataType>
+            <Direction>Input</Direction>
+            <IsDynamic>false</IsDynamic>
+            <ValueType>Default</ValueType>
+            <SupportsInterpolation>false</SupportsInterpolation>
+          </ParameterInfoBase>
+        </Parameters>
+      </DataflowItemDataParameter>
+    </FlowDocumentItemAction>
+    <FlowDocumentItemAction>
+      <ActionProperties>
+        <UniqueId>a5d62295-8aee-4256-8bcb-d3d2fd1868c5</UniqueId>
+        <DocumentItemData>
+          <SharingConnection>false</SharingConnection>
+          <ShareConnectionInstanceAmongDestinations>false</ShareConnectionInstanceAmongDestinations>
+        </DocumentItemData>
+        <ActionId>a5d62295-8aee-4256-8bcb-d3d2fd1868c5</ActionId>
+        <SharedItemPath>
+          <Path />
+          <UncPath />
+        </SharedItemPath>
+        <ActionTemplateName>RunExe</ActionTemplateName>
+        <NodeBounds>
+          <NormalBounds>
+            <Height>200</Height>
+            <Width>200</Width>
+            <X>543.44</X>
+            <Y>75.4</Y>
+            <IsExpanded>true</IsExpanded>
+            <ActualExpandedHeight>0</ActualExpandedHeight>
+            <IsSorted>false</IsSorted>
+          </NormalBounds>
+        </NodeBounds>
+        <IsSkip>false</IsSkip>
+        <IsHidden>false</IsHidden>
+        <SourceActionRole>Normal</SourceActionRole>
+        <DoNotPushdown>false</DoNotPushdown>
+        <Name>RunExe</Name>
+      </ActionProperties>
+      <WorkflowItemDataRunProgram>
+        <Name>RunExe</Name>
+        <IsShared>false</IsShared>
+        <ParameterXml>&lt;?xml version="1.0" encoding="utf-16"?&gt;&lt;DataObject Version="2" Name="RunExe" /&gt;</ParameterXml>
+        <ActionRole>Normal</ActionRole>
+        <ProgramName>
+          <Path>c:\BasicAutoCAD\run_autodraw_basic.bat</Path>
+          <UncPath>c:\BasicAutoCAD\run_autodraw_basic.bat</UncPath>
+        </ProgramName>
+        <StartupDirectory>
+          <Path />
+          <UncPath />
+        </StartupDirectory>
+        <Parameters>{input_specs.specs}</Parameters>
+        <RunAs>hira.asif</RunAs>
+        <SuccessValue>0</SuccessValue>
+        <Password>
+          <E>A166473ACCCCE1787D345018B5E7D71AD450D76A2718BB37B8559874E2EC515F</E>
+        </Password>
+        <WaitForJobToFinish>true</WaitForJobToFinish>
+        <FailIfUnsuccessful>true</FailIfUnsuccessful>
+        <WriteErrorOutputToTrace>false</WriteErrorOutputToTrace>
+        <WriteStandardOutputToTrace>true</WriteStandardOutputToTrace>
+        <Timeout>180</Timeout>
+      </WorkflowItemDataRunProgram>
+    </FlowDocumentItemAction>
+  </Actions>
+  <Links />
+  <Maps>
+    <FlowDocumentItemMap>
+      <Start>input_specs.specs</Start>
+      <End>RunExe.Input.ParameterString</End>
+    </FlowDocumentItemMap>
+  </Maps>
+  <Relationships />
+  <VisualInfo>
+    <UniqueId>b35248b8-aa82-4121-b2d3-d6bb4ae7a82c</UniqueId>
+    <Actions />
+    <DocumentBounds>
+      <Item1>155.44000244140625</Item1>
+      <Item2>75.4000015258789</Item2>
+      <Item3>588</Item3>
+      <Item4>204</Item4>
+    </DocumentBounds>
+    <DocumentPosition>
+      <Item1>0</Item1>
+      <Item2>0</Item2>
+    </DocumentPosition>
+    <DocumentScale>1</DocumentScale>
+    <IsSelected>false</IsSelected>
+    <MappingMode>Data</MappingMode>
+    <UseMessages>false</UseMessages>
+    <UseOrthogonalLinks>false</UseOrthogonalLinks>
+  </VisualInfo>
+</WorkflowDocument2>

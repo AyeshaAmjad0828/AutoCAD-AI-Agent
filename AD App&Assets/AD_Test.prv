@@ -1,0 +1,68 @@
+;;; Visual LISP make file [V1.0] AD_Test saved to:[J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Updating] at:[8/1/25] 
+(PRV-DEF
+  (:target . "AD_Test.VLX")
+  (:active-x . T)
+  (:separate-namespace)
+  (:protected . T)
+  (:load-file-list
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Autodraw_UnivFunctions.lsp"
+    )
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Details_Publisher.lsp"
+    )
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/LS_Autodraw.lsp"
+    )
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/LSR_Autodraw.lsp"
+    )
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Mag-Trk_AutoDraw.lsp"
+    )
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/PG_AutoDraw.lsp"
+    )
+    (:lsp
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Rush_Autodraw.lsp"
+    )
+  )
+  (:require-file-list
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/CustomLumens.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Detail_Choice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/DriverUpdate.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/LS_Choice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/LS_RepChoice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/LSR_Choice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Mag-Trk_Choice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/PG_Choice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/Rush_Choice.dcl"
+    )
+    (:DCL
+      "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/RushRec_Choice.dcl"
+    )
+    (:DCL "J:/AutoCAD PLugins/Coronet AutoCAD Scripts/WWDir.dcl"
+    )
+  )
+  (:ob-directory)
+  (:tmp-directory)
+  (:optimization . st)
+)
+;; EOF

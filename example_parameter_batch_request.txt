@@ -1,0 +1,1 @@
+Create a rush light fixture 8 feet long, 4 inches wide, mounted on ceiling with frosted lens  starting at 1000,1000 and ending at 1500,5000.
