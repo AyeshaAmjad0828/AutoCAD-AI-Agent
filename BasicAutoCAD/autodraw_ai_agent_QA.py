@@ -269,16 +269,11 @@ class AutoDrawAIAgent:
     
     def _ensure_lisp_loaded(self, fixture_type: str) -> bool:
         """
-        Ensure required LISP files are loaded for a fixture type.
-        
-        Args:
-            fixture_type: Type of fixture (PG, LS, LSR, etc.)
-            
-        Returns:
-            True if all required files loaded, False otherwise
+        Ensure required LISP files are loaded.
+        Always reloads to handle new drawings.
         """
-        # Always load universal functions first
-        if not self._load_lisp_file("universal"):
+        # Always load universal functions (safe to reload)
+        if not self._load_lisp_file_always("universal"):
             logger.error("Failed to load universal LISP functions")
             return False
         
@@ -287,11 +282,34 @@ class AutoDrawAIAgent:
             logger.error(f"No LISP file configured for fixture type: {fixture_type}")
             return False
         
-        if not self._load_lisp_file(fixture_type):
+        if not self._load_lisp_file_always(fixture_type):
             logger.error(f"Failed to load LISP file for fixture type: {fixture_type}")
             return False
         
         return True
+    
+    def _load_lisp_file_always(self, file_key: str) -> bool:
+        """Load a LISP file (always reloads, doesn't check cache)."""
+        if file_key not in self.lisp_files:
+            logger.error(f"Unknown LISP file key: {file_key}")
+            return False
+        
+        file_path = self.lisp_files[file_key]
+        
+        if not os.path.exists(file_path):
+            logger.error(f"LISP file not found: {file_path}")
+            return False
+        
+        try:
+            autocad, doc, modelspace = self._get_autocad_objects()
+            lisp_path = file_path.replace('\\', '/')
+            load_cmd = f'(load "{lisp_path}")\n'
+            doc.SendCommand(load_cmd)
+            logger.info(f"Loaded LISP file: {file_path}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load LISP file {file_key}: {e}")
+            return False
     
     def set_lisp_path(self, fixture_type: str, path: str):
         """
@@ -505,7 +523,7 @@ class AutoDrawAIAgent:
     
     def _build_pg_lisp_command(self, params: Dict) -> str:
         """Build LISP command string for PG fixture."""
-        return (
+        cmd = (
             f'(c:PGAutoAPI '
             f'"{params["series"]}" '
             f'"{params["mounting"]}" '
@@ -529,6 +547,13 @@ class AutoDrawAIAgent:
             f'{params["start_y"]}'
             f')\n'
         )
+
+        print("=" * 70)
+        print("LISP COMMAND BEING SENT:")
+        print(cmd)
+        print("=" * 70)
+    
+        return cmd
 
     # =========================================================================
     # LS FIXTURE DRAWING (Template - implement when LISP is ready)
