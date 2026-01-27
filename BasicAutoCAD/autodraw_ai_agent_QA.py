@@ -38,7 +38,7 @@ class AutoDrawAIAgent:
             initialize_autocad: Whether to initialize AutoCAD connection on startup
         """
 
-        self.lisp_base_path = "C:\Users\coronetastera\Documents\Lisp and Dialogue files\Lisp"
+        self.lisp_base_path = r"C:\Users\coronetastera\Documents\Lisp and Dialogue files\Lisp"
 
         self._thread_local = threading.local()
         
