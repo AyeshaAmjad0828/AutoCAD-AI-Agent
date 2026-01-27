@@ -15,6 +15,7 @@ from datetime import datetime
 import threading
 import pythoncom
 import traceback
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -462,6 +463,11 @@ class AutoDrawAIAgent:
             - start_x, start_y: Starting coordinates (default: 0, 0)
         """
         try:
+
+            # Handle if specs is passed as JSON string
+            if isinstance(specs, str):
+                specs = json.loads(specs)
+
             # Validate required fields
             required = ['series', 'mounting', 'output', 'regress', 'length_ft']
             error = self._validate_required_fields(specs, required)
@@ -479,6 +485,13 @@ class AutoDrawAIAgent:
             logger.debug(f"Command: {lisp_cmd}")
             
             doc.SendCommand(lisp_cmd)
+
+            # Wait for command to complete
+            time.sleep(2)  # Wait 2 seconds for drawing to complete
+        
+            # Force a regen to ensure everything is drawn
+            doc.SendCommand("_REGEN ")
+            time.sleep(0.5)
             
             return {
                 "success": True,
@@ -492,6 +505,8 @@ class AutoDrawAIAgent:
             logger.error(f"Failed to draw PG fixture: {e}")
             logger.error(traceback.format_exc())
             return {"success": False, "error": str(e)}
+        
+
     
     def _map_pg_params(self, specs: Dict) -> Dict:
         """Map input specs to PG LISP parameters."""
