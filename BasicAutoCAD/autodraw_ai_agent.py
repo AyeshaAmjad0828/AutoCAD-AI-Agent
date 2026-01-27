@@ -1,3 +1,4 @@
+from urllib import response
 import openai
 import win32com.client
 import json
@@ -11,6 +12,8 @@ import threading
 import pythoncom
 import traceback
 import os
+import httpx
+from openai import OpenAI
 
 
 # Configure logging
@@ -24,21 +27,17 @@ class AutoDrawAIAgent:
     """
     
     def __init__(self, openai_api_key: str = None, initialize_autocad: bool = True):
-        """
-        Initialize the AutoDraw AI Agent.
-        
-        Args:
-            openai_api_key: OpenAI API key for natural language processing
-            initialize_autocad: Whether to initialize AutoCAD connection (default: True)
-        """
-        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
+
+        self.openai_api_key = openai_api_key or os.getenv("OPENAI_API_KEY")
         if not self.openai_api_key:
-            raise ValueError("OpenAI API key is required. Set OPENAI_API_KEY environment variable or pass it to constructor.")
-        
-        # Thread-local storage for COM objects
+            raise ValueError("OpenAI API key is required")
+
+        http_client = httpx.Client(timeout=httpx.Timeout(60.0),trust_env=False)
+
+        self.openai_client = OpenAI(api_key=self.openai_api_key,http_client=http_client)
+
         self._thread_local = threading.local()
-        
-        # Initialize AutoCAD COM connection in current thread if requested
+
         if initialize_autocad:
             self._initialize_autocad_connection()
         
@@ -231,37 +230,16 @@ class AutoDrawAIAgent:
             Dictionary containing parsed specifications
         """
         try:
-            # Create a comprehensive prompt for the AI
             prompt = self._create_parsing_prompt(user_input)
+
+
+            response = self.openai_client.chat.completions.create(model="gpt-4.1-mini",messages=[{"role": "system", "content": "You are an expert AutoCAD lighting design assistant. Parse user requests into structured specifications."},{"role": "user", "content": prompt}],temperature=0.1,max_tokens=1000)
             
-            # Get AI response
-            from openai import OpenAI
-            client = OpenAI(api_key=self.openai_api_key)
-            response = client.chat.completions.create(
-                model="gpt-4",
-                messages=[
-                    {"role": "system", "content": "You are an expert AutoCAD lighting design assistant. Parse user requests into structured specifications."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                max_tokens=1000
-            )
-            
-            # Parse the response
-            try:
-                parsed_specs = json.loads(response.choices[0].message.content)
-                logger.info(f"Parsed specifications: {parsed_specs}")
-                return parsed_specs
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse AI response as JSON: {e}")
-                logger.error(f"AI Response: {response.choices[0].message.content}")
-                # Return a default specification for linear light
-                return self._create_default_specification(user_input)
-            
+            return json.loads(response.choices[0].message.content)
+
         except Exception as e:
-            logger.error(f"Error processing natural language request: {e}")
-            # Return a default specification for linear light
-            return self._create_default_specification(user_input)
+           logger.error(f"NLP parsing failed: {e}")
+           return self._create_default_specification(user_input)
     
     def _create_default_specification(self, user_input: str) -> Dict:
         """Create a default specification when AI parsing fails"""
