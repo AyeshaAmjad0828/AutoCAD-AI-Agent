@@ -551,7 +551,7 @@ class AutoDrawAIAgent:
         print("=" * 70)
         print("LISP COMMAND BEING SENT:")
         print(cmd)
-        print("=" * 70)
+        print("=" * 70) 
     
         return cmd
 
