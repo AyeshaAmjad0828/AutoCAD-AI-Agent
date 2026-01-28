@@ -486,12 +486,12 @@ class AutoDrawAIAgent:
             
             doc.SendCommand(lisp_cmd)
 
-            time.sleep(2)
-
-            doc.SendCommand("nil\n")
+            # time.sleep(2)
 
             # Wait for command to complete
-            # self._wait_for_autocad(doc)
+            self._wait_for_autocad(doc)
+
+            doc.SendCommand("nil")
             
             return {
                 "success": True,
@@ -507,25 +507,25 @@ class AutoDrawAIAgent:
             return {"success": False, "error": str(e)}
         
 
-    # def _wait_for_autocad(self, doc, timeout: int = 30):
-    #     """Wait for AutoCAD to finish processing commands."""
+    def _wait_for_autocad(self, doc, timeout: int = 30):
+        """Wait for AutoCAD to finish processing commands."""
         
-    #     start_time = time.time()
-    #     while time.time() - start_time < timeout:
-    #         try:
-    #             # Check if command is still active
-    #             cmd_active = doc.GetVariable("CMDACTIVE")
-    #             if cmd_active == 0:
-    #                 # Command finished, wait a tiny bit more for safety
-    #                 time.sleep(0.3)
-    #                 return True
-    #         except:
-    #             # If we can't check, just wait
-    #             pass
-    #         time.sleep(0.2)
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                # Check if command is still active
+                cmd_active = doc.GetVariable("CMDACTIVE")
+                if cmd_active == 0:
+                    # Command finished, wait a tiny bit more for safety
+                    time.sleep(0.1)
+                    return True
+            except:
+                # If we can't check, just wait
+                pass
+            time.sleep(0.2)
         
-    #     logger.warning("AutoCAD command may not have completed within timeout")
-    #     return False
+        logger.warning("AutoCAD command may not have completed within timeout")
+        return False
         
 
     
