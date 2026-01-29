@@ -527,12 +527,12 @@ class AutoDrawAIAgent:
                 cmd_active = doc.GetVariable("CMDACTIVE")
                 if cmd_active == 0:
                     # Command finished, wait a tiny bit more for safety
-                    time.sleep(0.1)
+                    time.sleep(0.3)
                     return True
             except:
                 # If we can't check, just wait
                 pass
-            time.sleep(0.1)
+            time.sleep(0.3)
         
         logger.warning("AutoCAD command may not have completed within timeout")
         return False
