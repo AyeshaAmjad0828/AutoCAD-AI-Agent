@@ -64,7 +64,7 @@ class AutoDrawAIAgent:
     def _setup_lisp_files(self):
         """Setup LISP file paths and fixture configurations."""
         
-        # LISP file paths - UPDATE THESE PATHS FOR YOUR SYSTEM
+        # LISP file paths 
         self.lisp_files = {
             "universal": os.path.join(self.lisp_base_path, "Autodraw_UnivFunctions.lsp"),
             "PG": os.path.join(self.lisp_base_path, "PG_AutoDraw_API.lsp"),
@@ -73,6 +73,8 @@ class AutoDrawAIAgent:
             "Rush": os.path.join(self.lisp_base_path, "Rush_AutoDraw.lsp"),
             "Rush-Rec": os.path.join(self.lisp_base_path, "Rush_AutoDraw.lsp"),  # Same file, different mode
             "Magneto": os.path.join(self.lisp_base_path, "Magneto_AutoDraw.lsp"),
+            "MagTrk": os.path.join(self.lisp_base_path, "Mag-Trk_AutoDraw_API.lsp"),
+
         }
         
         # Fixture type to LISP API function mapping
@@ -83,6 +85,7 @@ class AutoDrawAIAgent:
             "Rush": "c:RushAutoAPI",
             "Rush-Rec": "c:RushRecAutoAPI",
             "Magneto": "c:MagAutoAPI",
+            "MagTrk": "c:MagTrkAutoAPI",
         }
         
         # Supported fixture types with their valid options
@@ -117,6 +120,12 @@ class AutoDrawAIAgent:
                 "series": ["Magneto"],
                 "mounting": ["Surface", "Recessed"],
                 "output": ["LOW", "MED", "HIGH"],
+            },
+            "MagTrk": {
+                "series": ["Mag", "MagRec"],
+                "mounting": ["AC", "SM", "NT", "T", "T15", "SG"],
+                "output_up": ["LOW", "MED", "HIGH", "LMFT", "WFT"],
+                "finish": ["White", "Black", "Silver", "CC"],
             },
         }
         
@@ -365,6 +374,7 @@ class AutoDrawAIAgent:
                 "Rush": self._draw_rush_fixture,
                 "Rush-Rec": self._draw_rush_rec_fixture,
                 "Magneto": self._draw_magneto_fixture,
+                "MagTrk": self._draw_magtrk_fixture,
             }
             
             if fixture_type in draw_methods:
@@ -491,7 +501,7 @@ class AutoDrawAIAgent:
             # Wait for command to complete
             self._wait_for_autocad(doc)
 
-            doc.SendCommand("nil")
+            #doc.SendCommand("nil")
             
             return {
                 "success": True,
@@ -522,7 +532,7 @@ class AutoDrawAIAgent:
             except:
                 # If we can't check, just wait
                 pass
-            time.sleep(0.2)
+            time.sleep(0.1)
         
         logger.warning("AutoCAD command may not have completed within timeout")
         return False
@@ -590,6 +600,143 @@ class AutoDrawAIAgent:
         print("=" * 70) 
     
         return cmd
+
+    # =========================================================================
+    # MAGTRK FIXTURE DRAWING
+    # =========================================================================
+
+    def _draw_magtrk_fixture(self, specs: Dict) -> Dict:
+        """
+        Draw Magneto Track fixture using LISP API.
+        
+        Required specs:
+            - series: "Mag" or "MagRec"
+            - mounting: "AC", "SM", "NT", "T", "T15", "SG"
+            - length_ft: Run length in feet
+            
+        Optional specs:
+            - length_in: Additional inches (default: 0)
+            - up_toggle: 0 or 1 - uplight toggle (default: 0)
+            - output_up: "LOW", "MED", "HIGH", "LMFT", "WFT" (only if up_toggle=1)
+            - custom_output_up: Number for LMFT/WFT modes (default: None)
+            - finish: "White", "Black", "Silver", "CC" (default: "White")
+            - oa_option: "Exact" or "Nom" (default: "Nom")
+            - breakdown: "EqualLength" or "MaxSection" (default: "EqualLength")
+            - max_tog: 0 or 1 (default: 0)
+            - max_section: Max section length in feet (default: None)
+            - fixture_num: e.g., "F1" (default: "F1")
+            - quantity: Number of fixtures (default: 1)
+            - fixture_type: Description string (default: "")
+            - run_id: Run identifier string (default: "")
+            - start_x, start_y: Starting coordinates (default: 0, 0)
+        """
+        try:
+            import time
+            
+            if isinstance(specs, str):
+                import json
+                specs = json.loads(specs)
+            
+            # Validate required fields
+            required = ['series', 'mounting', 'length_ft']
+            error = self._validate_required_fields(specs, required)
+            if error:
+                return {"success": False, "error": error}
+            
+            # Map specifications to LISP parameters
+            params = self._map_magtrk_params(specs)
+            
+            # Build LISP command
+            lisp_cmd = self._build_magtrk_lisp_command(params)
+            
+            autocad, doc, modelspace = self._get_autocad_objects()
+            logger.info(f"Executing MagTrk LISP command")
+            logger.debug(f"Command: {lisp_cmd}")
+            
+            # Send command
+            doc.SendCommand(lisp_cmd)
+
+            self._wait_for_autocad(doc)
+            
+            # Wait for processing
+            #time.sleep(2)
+            
+            # Send nil to ensure completion
+            #doc.SendCommand('nil\n')
+            
+            # Wait for completion
+            #time.sleep(1)
+            
+            return {
+                "success": True,
+                "message": "Magneto Track fixture drawn successfully",
+                "fixture_type": "MagTrk",
+                "params": params,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to draw MagTrk fixture: {e}")
+            logger.error(traceback.format_exc())
+            return {"success": False, "error": str(e)}
+        
+        
+    def _map_magtrk_params(self, specs: Dict) -> Dict:
+        """Map input specs to MagTrk LISP parameters."""
+        breakdown = specs.get('breakdown', 'EqualLength')
+        max_tog = 1 if breakdown == 'MaxSection' else 0
+        
+        # Handle up_toggle - if 1, output_up is required
+        up_tog = 1 if specs.get('up_toggle') else 0
+        output_up = specs.get('output_up', 'HIGH') if up_tog == 1 else None
+        
+        return {
+            'series': specs['series'],                              # "Mag" or "MagRec"
+            'mounting': specs['mounting'],                          # "AC", "SM", "NT", "T", "T15", "SG"
+            'up_tog': up_tog,                                       # 0 or 1
+            'out_up': output_up,                                    # "LOW", "MED", "HIGH", "LMFT", "WFT" or None
+            'uout_mod': specs.get('custom_output_up'),              # Custom output for LMFT/WFT
+            'finish': self._map_finish(specs.get('finish', 'White')),
+            'ex_nom': specs.get('oa_option', 'Nom'),                # "Exact" or "Nom"
+            'breakdown': breakdown,                                 # "EqualLength" or "MaxSection"
+            'max_tog': max_tog,                                     # 0 or 1
+            'max_section': specs.get('max_section'),                # Max section in feet or None
+            'rft': float(specs['length_ft']),                       # 12.0
+            'rin': float(specs.get('length_in', 0)),                # 6.0
+            'fix_num': specs.get('fixture_num', 'F1'),              # "F1"
+            'fix_qty': int(specs.get('quantity', 1)),               # 1
+            'fix_type': specs.get('fixture_type', ''),              # ""
+            'run_ident': specs.get('run_id', ''),                   # ""
+            'start_x': float(specs.get('start_x', 0)),              # 0.0
+            'start_y': float(specs.get('start_y', 0)),              # 0.0
+        }
+    
+    def _build_magtrk_lisp_command(self, params: Dict) -> str:
+        """Build LISP command string for MagTrk fixture."""
+        cmd = (
+            f'(c:MagTrkAutoAPI '
+            f'"{params["series"]}" '
+            f'"{params["mounting"]}" '
+            f'{params["up_tog"]} '
+            f'{self._to_lisp_value(params["out_up"], True) if params["out_up"] else "nil"} '
+            f'{self._to_lisp_value(params["uout_mod"])} '
+            f'"{params["finish"]}" '
+            f'"{params["ex_nom"]}" '
+            f'"{params["breakdown"]}" '
+            f'{params["max_tog"]} '
+            f'{self._to_lisp_value(params["max_section"])} '
+            f'{params["rft"]} '
+            f'{params["rin"]} '
+            f'"{params["fix_num"]}" '
+            f'{params["fix_qty"]} '
+            f'{self._to_lisp_value(params["fix_type"], True)} '
+            f'{self._to_lisp_value(params["run_ident"], True)} '
+            f'{params["start_x"]} '
+            f'{params["start_y"]}'
+            f')\n'
+        )
+        return cmd
+
 
     # =========================================================================
     # LS FIXTURE DRAWING (Template - implement when LISP is ready)
