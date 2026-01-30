@@ -72,7 +72,7 @@ class AutoDrawAIAgent:
             "LSR": os.path.join(self.lisp_base_path, "LSR_AutoDraw.lsp"),
             "Rush": os.path.join(self.lisp_base_path, "Rush_AutoDraw.lsp"),
             "Rush-Rec": os.path.join(self.lisp_base_path, "Rush_AutoDraw.lsp"),  # Same file, different mode
-            "Magneto": os.path.join(self.lisp_base_path, "Magneto_AutoDraw.lsp"),
+            #"Magneto": os.path.join(self.lisp_base_path, "Magneto_AutoDraw.lsp"),
             "MagTrk": os.path.join(self.lisp_base_path, "Mag-Trk_AutoDraw_API.lsp"),
 
         }
@@ -84,7 +84,7 @@ class AutoDrawAIAgent:
             "LSR": "c:LSRAutoAPI",
             "Rush": "c:RushAutoAPI",
             "Rush-Rec": "c:RushRecAutoAPI",
-            "Magneto": "c:MagAutoAPI",
+            #"Magneto": "c:MagAutoAPI",
             "MagTrk": "c:MagTrkAutoAPI",
         }
         
@@ -373,7 +373,7 @@ class AutoDrawAIAgent:
                 "LSR": self._draw_lsr_fixture,
                 "Rush": self._draw_rush_fixture,
                 "Rush-Rec": self._draw_rush_rec_fixture,
-                "Magneto": self._draw_magneto_fixture,
+                #"Magneto": self._draw_magneto_fixture,
                 "MagTrk": self._draw_magtrk_fixture,
             }
             
@@ -637,41 +637,41 @@ class AutoDrawAIAgent:
                 import json
                 specs = json.loads(specs)
             
-            # Validate required fields
             required = ['series', 'mounting', 'length_ft']
             error = self._validate_required_fields(specs, required)
             if error:
                 return {"success": False, "error": error}
             
-            # Map specifications to LISP parameters
             params = self._map_magtrk_params(specs)
-            
-            # Build LISP command
             lisp_cmd = self._build_magtrk_lisp_command(params)
             
+            # DEBUG: Print the exact command
+            print("=" * 70)
+            print("MAGTRK LISP COMMAND:")
+            print(lisp_cmd)
+            print("=" * 70)
+            
             autocad, doc, modelspace = self._get_autocad_objects()
+            
+            # DEBUG: Print document name
+            print(f"Active Document: {doc.Name}")
+            
             logger.info(f"Executing MagTrk LISP command")
-            logger.debug(f"Command: {lisp_cmd}")
             
-            # Send command
             doc.SendCommand(lisp_cmd)
-
-            # self._wait_for_autocad(doc)
             
-            # Wait for processing
-            #time.sleep(2)
+            time.sleep(3)
             
-            # Send nil to ensure completion
             #doc.SendCommand('nil\n')
             
-            # Wait for completion
-            #time.sleep(1)
+            #time.sleep(2)
             
             return {
                 "success": True,
                 "message": "Magneto Track fixture drawn successfully",
                 "fixture_type": "MagTrk",
                 "params": params,
+                "lisp_command": lisp_cmd,  # Include in response for debugging
                 "timestamp": datetime.now().isoformat()
             }
             
