@@ -656,7 +656,7 @@ class AutoDrawAIAgent:
             # Send command
             doc.SendCommand(lisp_cmd)
 
-            self._wait_for_autocad(doc)
+            # self._wait_for_autocad(doc)
             
             # Wait for processing
             #time.sleep(2)
