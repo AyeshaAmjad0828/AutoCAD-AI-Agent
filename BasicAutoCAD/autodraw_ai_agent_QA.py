@@ -697,12 +697,6 @@ class AutoDrawAIAgent:
             
             logger.info(f"Executing MagTrk LISP command")
 
-             # Cancel any pending commands first
-            doc.SendCommand('\x1b')  # ESC
-            time.sleep(0.2)
-            doc.SendCommand('\x1b')  # ESC again
-            time.sleep(0.2)
-
             # Send the main command (with just ONE newline)
             doc.SendCommand(lisp_cmd.rstrip() + '\n')
             
@@ -711,12 +705,6 @@ class AutoDrawAIAgent:
             
             # Wait for command to complete
             time.sleep(3)
-
-            doc.SendCommand('\x1b')  # ESC to cancel any lingering prompts
-
-            time.sleep(2)
-
-
             
             #doc.SendCommand('nil\n')
             
@@ -929,10 +917,6 @@ class AutoDrawAIAgent:
                 return True
             
             logger.info(f"Initializing drawing  '{drawing_name}' for fixtures...")
-
-            # Cancel any pending commands
-            doc.SendCommand('\x1b')
-            time.sleep(0.3)
                 
             # Step 1: Load Universal Functions LISP
             universal_path = self.lisp_files.get("universal", "").replace('\\', '/')
