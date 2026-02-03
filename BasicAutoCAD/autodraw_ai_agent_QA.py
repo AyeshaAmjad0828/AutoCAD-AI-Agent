@@ -42,6 +42,8 @@ class AutoDrawAIAgent:
         self.lisp_base_path = r"C:\Users\coronetastera\Documents\Lisp and Dialogue files\Lisp"
 
         self._thread_local = threading.local()
+
+        self._initialized_drawings = set()  # Track which drawings have been initialized
         
         # LISP file configuration
         # self.lisp_base_path = lisp_base_path or self._get_default_lisp_path()
@@ -492,8 +494,21 @@ class AutoDrawAIAgent:
             
             autocad, doc, modelspace = self._get_autocad_objects()
 
+            # Store current document name BEFORE initialization
+            current_doc_name = doc.Name
+            logger.info(f"Working in document: {current_doc_name}")
+            
+            # Initialize drawing ONLY if not already done
+            if current_doc_name not in self._initialized_drawings:
+                self._initialize_drawing_for_fixtures(doc, "PG")
+            else:
+                # Just load the fixture LISP (it might have been unloaded)
+                fixture_path = self.lisp_files.get("MagTrk", "").replace('\\', '/')
+                doc.SendCommand(f'(load "{fixture_path}")\n')
+                time.sleep(1)
+
             # Initialize drawing if needed (for fresh drawings)
-            self._initialize_drawing_for_fixtures(doc, "PG")
+            #self._initialize_drawing_for_fixtures(doc, "PG")
 
             logger.info(f"Executing PG LISP command")
 
@@ -649,6 +664,22 @@ class AutoDrawAIAgent:
             
             params = self._map_magtrk_params(specs)
             lisp_cmd = self._build_magtrk_lisp_command(params)
+
+            autocad, doc, modelspace = self._get_autocad_objects()
+
+            # Store current document name BEFORE initialization
+            current_doc_name = doc.Name
+            logger.info(f"Working in document: {current_doc_name}")
+
+            # Initialize drawing ONLY if not already done
+            if current_doc_name not in self._initialized_drawings:
+                self._initialize_drawing_for_fixtures(doc, "MagTrk")
+            else:
+                # Just load the fixture LISP (it might have been unloaded)
+                fixture_path = self.lisp_files.get("MagTrk", "").replace('\\', '/')
+                doc.SendCommand(f'(load "{fixture_path}")\n')
+                time.sleep(1)  # Give time to load
+
             
             # DEBUG: Print the exact command
             print("=" * 70)
@@ -656,13 +687,13 @@ class AutoDrawAIAgent:
             print(lisp_cmd)
             print("=" * 70)
             
-            autocad, doc, modelspace = self._get_autocad_objects()
+            
             
             # DEBUG: Print document name
             print(f"Active Document: {doc.Name}")
 
             # Initialize drawing if needed (for fresh drawings)
-            self._initialize_drawing_for_fixtures(doc, "MagTrk")
+            #self._initialize_drawing_for_fixtures(doc, "MagTrk")
             
             logger.info(f"Executing MagTrk LISP command")
             
@@ -874,6 +905,12 @@ class AutoDrawAIAgent:
         import time
         
         try:
+            # Check if this drawing was already initialized
+            drawing_name = doc.Name
+            if drawing_name in self._initialized_drawings:
+                logger.info(f"Drawing '{drawing_name}' already initialized, skipping")
+                return True
+            
             logger.info("Initializing drawing for fixtures...")
             
             # Step 1: Load Universal Functions LISP
@@ -916,8 +953,11 @@ class AutoDrawAIAgent:
             # Step 6: Set ApiMode flag to suppress alerts during API calls
             doc.SendCommand('(setq ApiMode T)\n')
             time.sleep(0.3)
+
+            # Mark this drawing as initialized
+            self._initialized_drawings.add(drawing_name)
             
-            logger.info("Drawing initialization complete")
+            logger.info(f"Drawing '{drawing_name}' initialization complete")
             return True
             
         except Exception as e:
