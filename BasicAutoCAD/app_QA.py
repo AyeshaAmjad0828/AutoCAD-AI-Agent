@@ -65,10 +65,9 @@ def validate_autocad_connection():
 def draw_fixture():
     """Draw any fixture type from specifications"""
     
-    import datetime
     
     # Log every API call with timestamp
-    logger.info(f"=== API CALL RECEIVED at {datetime.datetime.now()} ===")
+    logger.info(f"=== API CALL RECEIVED at {datetime.datetime.now().isoformat()} ===")
     
     try:
         data = request.get_json()
