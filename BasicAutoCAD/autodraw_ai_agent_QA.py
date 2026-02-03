@@ -66,7 +66,7 @@ class AutoDrawAIAgent:
         
         # LISP file paths 
         self.lisp_files = {
-            "universal": os.path.join(self.lisp_base_path, "Autodraw_UnivFunctions_API.lsp"),
+            "universal": os.path.join(self.lisp_base_path, "Autodraw_UnivFunctions.lsp"),
             "PG": os.path.join(self.lisp_base_path, "PG_AutoDraw_API.lsp"),
             "LS": os.path.join(self.lisp_base_path, "LS_AutoDraw.lsp"),
             "LSR": os.path.join(self.lisp_base_path, "LSR_AutoDraw.lsp"),
