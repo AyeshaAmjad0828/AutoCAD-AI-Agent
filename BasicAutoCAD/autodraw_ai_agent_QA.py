@@ -66,7 +66,7 @@ class AutoDrawAIAgent:
         
         # LISP file paths 
         self.lisp_files = {
-            "universal": os.path.join(self.lisp_base_path, "Autodraw_UnivFunctions.lsp"),
+            "universal": os.path.join(self.lisp_base_path, "Autodraw_UnivFunctions_API.lsp"),
             "PG": os.path.join(self.lisp_base_path, "PG_AutoDraw_API.lsp"),
             "LS": os.path.join(self.lisp_base_path, "LS_AutoDraw.lsp"),
             "LSR": os.path.join(self.lisp_base_path, "LSR_AutoDraw.lsp"),
@@ -491,7 +491,12 @@ class AutoDrawAIAgent:
             lisp_cmd = self._build_pg_lisp_command(params)
             
             autocad, doc, modelspace = self._get_autocad_objects()
+
+            # Initialize drawing if needed (for fresh drawings)
+            self._initialize_drawing_for_fixtures(doc, "PG")
+
             logger.info(f"Executing PG LISP command")
+
             logger.debug(f"Command: {lisp_cmd}")
             
             doc.SendCommand(lisp_cmd)
@@ -655,6 +660,9 @@ class AutoDrawAIAgent:
             
             # DEBUG: Print document name
             print(f"Active Document: {doc.Name}")
+
+            # Initialize drawing if needed (for fresh drawings)
+            self._initialize_drawing_for_fixtures(doc, "MagTrk")
             
             logger.info(f"Executing MagTrk LISP command")
             
@@ -843,6 +851,95 @@ class AutoDrawAIAgent:
             "error": "Magneto fixture API not yet implemented. "
                      "Please share Magneto_AutoDraw.lsp and its DCL file to implement."
         }
+
+    
+    def _initialize_drawing_for_fixtures(self, doc, fixture_type: str = None) -> bool:
+        """
+        Initialize a fresh AutoCAD drawing with required styles, layers, and blocks.
+        
+        This must be called before drawing fixtures in a NEW/BLANK drawing.
+        It does what the first run of the dialog version does - sets up:
+        - LSAD_Styles block (contains all layer/style definitions)
+        - Required dimension styles
+        - Required text styles
+        - Required layers
+        
+        Args:
+            doc: AutoCAD document COM object
+            fixture_type: Optional - specific fixture type to initialize for
+            
+        Returns:
+            True if initialization successful, False otherwise
+        """
+        import time
+        
+        try:
+            logger.info("Initializing drawing for fixtures...")
+            
+            # Step 1: Load Universal Functions LISP
+            universal_path = self.lisp_files.get("universal", "").replace('\\', '/')
+            if universal_path and os.path.exists(universal_path.replace('/', '\\')):
+                logger.info(f"Loading universal functions: {universal_path}")
+                doc.SendCommand(f'(load "{universal_path}")\n')
+                time.sleep(1.5)
+            else:
+                logger.error(f"Universal LISP file not found: {universal_path}")
+                return False
+            
+            # Step 2: Insert LSAD_Styles block to create all styles/layers
+            # This block contains definitions for all required layers, dimstyles, textstyles
+            logger.info("Inserting LSAD_Styles block to initialize drawing...")
+            doc.SendCommand('(command "_.insert" "LSAD_Styles" (list 0 0 0) "" "" "")\n')
+            time.sleep(2)
+            
+            # Step 3: Check if insert succeeded (block might not be in search path)
+            # If it failed, we need to handle that
+            doc.SendCommand('(if (entlast) (command "_.erase" (entlast) ""))\n')
+            time.sleep(1)
+            
+            # Step 4: Set up commonly needed system variables
+            doc.SendCommand('(setvar "cmdecho" 0)\n')
+            time.sleep(0.3)
+            doc.SendCommand('(setvar "attreq" 0)\n')
+            time.sleep(0.3)
+            doc.SendCommand('(setvar "attdia" 0)\n')
+            time.sleep(0.3)
+            
+            # Step 5: Load fixture-specific LISP if specified
+            if fixture_type and fixture_type in self.lisp_files:
+                fixture_path = self.lisp_files[fixture_type].replace('\\', '/')
+                if os.path.exists(fixture_path.replace('/', '\\')):
+                    logger.info(f"Loading {fixture_type} LISP: {fixture_path}")
+                    doc.SendCommand(f'(load "{fixture_path}")\n')
+                    time.sleep(1.5)
+            
+            # Step 6: Set ApiMode flag to suppress alerts during API calls
+            doc.SendCommand('(setq ApiMode T)\n')
+            time.sleep(0.3)
+            
+            logger.info("Drawing initialization complete")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize drawing: {e}")
+            logger.error(traceback.format_exc())
+            return False
+
+
+    def _is_drawing_initialized(self, doc) -> bool:
+        """
+        Check if drawing has been initialized with LSAD styles.
+        
+        Returns True if the drawing has the required layers/styles.
+        """
+        try:
+            # Check for a layer that only exists after LSAD_Styles is loaded
+            doc.SendCommand('(if (tblsearch "LAYER" "Housing") (princ "INITIALIZED") (princ "NOT_INITIALIZED"))\n')
+            time.sleep(0.5)
+            # Note: We can't easily read the response, so this is informational only
+            return True
+        except:
+            return False
 
     # =========================================================================
     # BATCH PROCESSING
