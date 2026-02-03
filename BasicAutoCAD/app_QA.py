@@ -65,6 +65,7 @@ def validate_autocad_connection():
 def draw_fixture():
     """Draw any fixture type from specifications"""
     
+    from datetime import datetime
     
     # Log every API call with timestamp
     logger.info(f"=== API CALL RECEIVED at {datetime.datetime.now().isoformat()} ===")
