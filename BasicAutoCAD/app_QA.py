@@ -68,7 +68,7 @@ def draw_fixture():
     from datetime import datetime
     
     # Log every API call with timestamp
-    logger.info(f"=== API CALL RECEIVED at {datetime.datetime.now().isoformat()} ===")
+    logger.info(f"=== API CALL RECEIVED at {datetime.now().isoformat()} ===")
     
     try:
         data = request.get_json()
