@@ -697,7 +697,7 @@ class AutoDrawAIAgent:
             
             logger.info(f"Executing MagTrk LISP command")
             
-            doc.PostCommand(lisp_cmd)
+            doc.SendCommand(lisp_cmd)
             #doc.SendCommand('\n')  # Send Enter key to handle any waiting prompts
             
             time.sleep(3)
@@ -773,7 +773,7 @@ class AutoDrawAIAgent:
             f'{self._to_lisp_value(params["run_ident"], True)} '
             f'{params["start_x"]} '
             f'{params["start_y"]}'
-            f')\n'
+            f')' + '\n' * 25  # Add 25 Enter keys after command
         )
         return cmd
 
