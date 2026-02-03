@@ -365,8 +365,8 @@ class AutoDrawAIAgent:
                 }
             
             # Ensure LISP files are loaded
-            if not self._ensure_lisp_loaded(fixture_type):
-                return {"success": False, "error": f"Failed to load LISP files for {fixture_type}"}
+            # if not self._ensure_lisp_loaded(fixture_type):
+            #    return {"success": False, "error": f"Failed to load LISP files for {fixture_type}"}
             
             # Route to fixture-specific method
             draw_methods = {
