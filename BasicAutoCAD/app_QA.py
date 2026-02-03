@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import traceback
 
-from autodraw_ai_agent_QA import AutoDrawAIAgent
+from autodraw_ai_agent_QA_2 import AutoDrawAIAgent
 import config
 
 # Configure logging
