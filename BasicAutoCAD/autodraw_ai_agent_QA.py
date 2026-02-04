@@ -507,6 +507,16 @@ class AutoDrawAIAgent:
                 doc.SendCommand(f'(load "{fixture_path}")\n')
                 time.sleep(1)
 
+            # DEBUG: Print the exact command
+            print("=" * 70)
+            print("PG LISP COMMAND:")
+            print(lisp_cmd)
+            print("=" * 70)
+            
+            
+            # DEBUG: Print document name
+            print(f"Active Document: {doc.Name}")
+
             # Initialize drawing if needed (for fresh drawings)
             #self._initialize_drawing_for_fixtures(doc, "PG")
 
